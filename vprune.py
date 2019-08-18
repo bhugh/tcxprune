@@ -2,30 +2,65 @@
 
 """vprune.py.
 
-Prunes a .tcx file (RideWithGPS-compatible .tcx assumed) to reduce number of Trackpoints without reducing number of CoursePoints
-This will reduce the size of .tcx files downloaded from RideWithGPS without eliminating the turn-by-turn instructions included
-as CoursePoints in the file
+Prunes a .tcx file (RideWithGPS-compatible .tcx assumed) to reduce the number of Trackpoints (which draw the course on the map) without reducing number of CoursePoints (which give turn-by-turn directions)
+This will reduce the size of .tcx files downloaded from RideWithGPS without eliminating the turn-by-turn instructions included as CoursePoints in the file.
+
+Trackpoints are the points that indicate the path of the route on the map. With too few Trackpoints the route becomes "jaggy" and doesn't follow roads or trails exactly.  With too many Trackpoints the file may be too large to upload to your GPS device.
+
+In remove Trackpoints, vprune simply deletes points randomly. It does not attempt to use an optimizing algorithm. This seems to work well enough with RideWithGPS .tcx files. 
+
+Every CoursePoint (ie, point with turn-by-turn direction) must have an corresponding Trackpoint. So Trackpoints that correspond to spots with a turn-by-turn direction are never removed.
+
+When you specify --percent to remove a percentage of Trackpoints, the trackpoints that correspond to a turn (CoursePoint) cannot be removed.  So, for example, --percent 0 will remove all Trackpoints except those corresponding to a turn.
+
+vprune can also, optionally, split the file into several segments.  This allows the resulting files to be smaller and have better fidelity on the map, and also splits CoursePoints (with turn-by-turn directions) appropriately among the files. Many GPS devices will load smaller files with fewer CoursePoints more easily.
+
+When the file is split into several files, each file overlaps the other at one CoursePoint (turn-by-turn direction point). So when you reach that turn you can simply load the next file to continue.
+
+Output files are named vp_INPUTFILE (if one outputfile) or vp_1_INPUTFILE, vp_2_INPUTFILE, etc, if more than one.
+
+vprune can also, optionally, clean CoursePoint Notes and/or Generic CoursePoints. This reduces file size, and these features may cause problems with some GPS devices or simply be useless (never displayed) in others.
+
+vprune is specifically designed process .tcx files created with RideWithGPS and create .tcx files that will work with Lezyne GPS devices, which have problems when .tcx files are too large or have too many turns. It may be useful for .tcx files created by other sources and for other GPS devices as well.
+
+vprune INPUTFILE - ie, run with default settings, will clean Notes from entries, split the files, and eliminate Trackpoints as needed to create a series of files should upload/run OK with a Lezyne GPS device.
+
+Usage examples:
+  vprune routefile.tcx
+  vprune --maxturns 100 --maxpoints 1000 --cleancourse --nocleannotes routefile.tcx
+  vprune --maxturns 60 --maxpoints 400 --prefix new_ routefile.tcx 
+  vprune --split 6 --maxpoints 750 routefile.tcx                                 
+  vprune --percent 50 routefile.tcx   
 
 Usage:
-  vprune.py [options] INPUTFILE
+  vprune [options] INPUTFILE 
+  vprune -h
+  vprune --help
   
-
 Arguments:
   INPUTFILE         Required .TCX input filename
 
 Options:
   -h --help     Show this.
-  --maxturns <max # of turns/CoursePoints per file, will split into separate files if more than this>  Specify  max # turns/CoursePoints of Trackpoints in the resulting file(s).
-  --percent <pct 0-100>  Specify percent of points to retain. 100% retains all points, 50% retains half/removes half, 0% removes all points. 
-  --maxpoints <# of points 0-1000000>  Specify  max # of Trackpoints in the resulting file. Default is 2000 points.
-  --clean  Will strip all Generic CoursePoints and eliminate all Notes in CoursePoints. [Default: No clean]
-  You can specify percent OR maxpoints.  maxpoints takes precedence if you specify both.
-  
-  #vprune.py [--maxturns=<num_turns per file, will split if greater, <= 0, default 150 >][--maxpoints=<num_points <0, default 2000 >] [--percent=<pct 0-100>] [--clean=<BOOL>] INPUTFILE
 
+  --maxturns <max # of turns/CoursePoints before file is split>  [Default: --maxturns 80]
+  --split <# of files to split into>                             [Specify --maxturns OR --split, not both]
+
+  --maxpoints <# of Trackpoints in each output file>      [Default: --maxpoints 500]
+  --percent <pct 0-100 of Trackpoints to retain>          [Specify --maxpoints OR --percent, not both]
+
+  --cleancourse   Strip all Generic CoursePoints.      [Default: No cleancourse]
+  --nocleannotes  Do not eliminate all Notes in CoursePoints. [Default: Eliminate all Notes]
+  --trimnotes     Trim notes to 32 characters and remove any potentially troublesome characters (also forces --nocleannotes)
+
+  --prefix <string>   Prefix output files with this string [Default: vp_]
+      
 """
+#vprune.py [--maxturns=<num_turns per file, will split if greater, <= 0, default 150 >][--maxpoints=<num_points <0, default 2000 >] [--percent=<pct 0-100>] [--clean=<BOOL>] INPUTFILE
+
 from __future__ import print_function
 import re, sys, random, datetime, math, copy #, pytz
+import PySimpleGUI as sg
 from docopt import docopt
 try:
   from lxml import etree
@@ -56,6 +91,7 @@ except ImportError:
 
 ns1 = 'http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2'
 ns2 = 'http://www.garmin.com/xmlschemas/ActivityExtension/v2'
+prefix = "vp_"
 num_courses = 0
 num_tracks = 0
 num_trackpoints = 0
@@ -64,6 +100,12 @@ orig_total_courses = 0
 orig_total_tracks = 0
 orig_total_trackpoints = 0
 orig_total_coursepoints = 0
+
+def isInt(s):
+    try:
+        return float(str(s)).is_integer()
+    except:
+        return False
 
 # from https://stackoverflow.com/questions/26523929/add-update-elements-at-position-using-lxml-python
 def upsert_entry(parent, index, insertdict, begindict, enddict):
@@ -208,19 +250,31 @@ def update_lap(course, start_returndict, end_returndict):
 	upsert_entry(course,1,insertdict,start_returndict, end_returndict)
 	return
 
-def cleanup_course(course):
-	print ("Course cleanup . . . ")
+def cleanup_course(course, cleancourse, cleannotes, trimnotes):
+	#print ("Course cleanup . . . ")
+	bad_chars = ["\n", "\p", "--"]
 	for child in course:
 		
 		if child.tag == '{%s}CoursePoint'%ns1:
 			for elem in child.iter():
 				#remove all notes (for now, testing)
-				#if elem.tag == '{%s}Notes'%ns1:
+				if cleannotes and elem.tag == '{%s}Notes'%ns1  and isinstance(elem.text, str):
 					#print ("Removing:", elem.text)
-				#	elem.text=""
+					elem.text=""
+					child.remove(elem)  #remove it entirely
+				if trimnotes and elem.tag == '{%s}Notes'%ns1 and isinstance(elem.text, str):
+					print ("Trimming:", elem.text)
+					elem.text=elem.text.strip()
+					elem.text = (elem.text[:30] + '..') if len(elem.text) > 32 else elem.text
+					#elem.text = filter(lambda i: i not in bad_chars, elem_text)
+					for i in bad_chars : 
+						elem.text = elem.text.replace(i, ' ') 
+					print ("Trimmed:", elem.text)
+
+
 
 				#remove any generic CoursePoints, may cause problems
-				if elem.tag == '{%s}PointType'%ns1 and elem.text == "Generic":
+				if cleancourse and elem.tag == '{%s}PointType'%ns1 and elem.text == "Generic":
 					#print ("Deleting:", elem.text)
 					child.getparent().remove(child)
 
@@ -275,11 +329,11 @@ def process_track(course, track, percent, times, start_time, end_time):
 	update_lap(course, start_returndict, end_returndict)
 
 
-def process_file(tree, root, tcxfile, num_parts, percent, first, last, clean, prnt):
+def process_file(tree, root, tcxfile, num_parts, percent, first, last, cleancourse, cleannotes, trimnotes, prnt):
 	"""
 	Process the whole TCX file.
 	"""
-	global num_coursepoints, num_trackpoints, num_tracks, num_courses
+	global num_coursepoints, num_trackpoints, num_tracks, num_courses, prefix
 	
 
 	for element in root.iter():
@@ -329,22 +383,26 @@ def process_file(tree, root, tcxfile, num_parts, percent, first, last, clean, pr
 				process_track(element, track, percent, times, start_time, end_time)
 				#update_lap(track)
 		
-			if clean:
-				cleanup_course(element)
+			if cleancourse or cleannotes or trimnotes:
+				cleanup_course(element, cleancourse, cleannotes, trimnotes)
 
 
-	new_name = "vp_" + tcxfile
+	new_name = prefix + tcxfile
 	tree.write(new_name, encoding='utf-8', xml_declaration=True)
 
 	print ("Result written to " + new_name)
 	if prnt:
 		print ('\n')
-		print ("Trimmed to: %s files, %s courses, %s tracks, %s trackpoints, %s coursepoints"%(num_parts, num_courses, num_tracks, num_trackpoints, num_coursepoints))
+		if num_parts>1:
+			print ("Trimmed to: %s files, %s courses, %s tracks, %s trackpoints (%s per output file), %s coursepoints (%s per output file)"%(num_parts, num_courses, num_tracks, num_trackpoints, round(num_trackpoints/num_parts), num_coursepoints, round(num_coursepoints/num_parts)))
+		else:
+			print ("Trimmed to: %s files, %s courses, %s tracks, %s trackpoints, %s coursepoints"%(num_parts, num_courses, num_tracks, num_trackpoints, num_coursepoints))
+			
 	sys.stderr.write('\n')
 	sys.stderr.flush()
 
 
-def count_file(root, percent, maxpoints, num_parts=1, maxturns=2000, prnt=False, whole=False):
+def count_file(root, percent, maxpoints, num_parts=1, maxturns=500, split=0, prnt=False, whole=False):
 	"""
 	Count # of Trackpoints & Coursepoints in the whole TCX file.
 	"""
@@ -410,7 +468,10 @@ def count_file(root, percent, maxpoints, num_parts=1, maxturns=2000, prnt=False,
 	temp_num_parts = num_parts
 	if whole:
 		temp_num_parts = math.ceil(orig_total_coursepoints/maxturns)
-
+		if split>0:
+			temp_num_parts = split
+			maxturns = math.ceil(orig_total_coursepoints/split)
+		
 	if prnt:
 		print ("Original file: %s courses, %s tracks, %s trackpoints, %s coursepoints"%(orig_total_courses, orig_total_tracks, orig_total_trackpoints, orig_total_coursepoints))
 		print ("Minimum trackpoints possible: %s trackpoints"%(orig_total_coursepoints))
@@ -427,17 +488,18 @@ def count_file(root, percent, maxpoints, num_parts=1, maxturns=2000, prnt=False,
 				#print ("Whole")
 				percent = (maxpoints*temp_num_parts-orig_total_coursepoints)*100/(orig_total_trackpoints-orig_total_coursepoints)
 		if prnt:
-			print ("Aiming for: Retain %s%% of trackpoints, retain %s total trackpoints in each file"%(round(percent), maxpoints))
+			print ("Aiming for: %s files, retain %s%% of trackpoints, retain %s total trackpoints in each file"%(temp_num_parts, round(percent), maxpoints))
 			print ('\n')
 	else:
 		maxpoints = orig_total_coursepoints/temp_num_parts + orig_total_trackpoints/temp_num_parts*percent/100
+		#maxpoints = orig_total_trackpoints/temp_num_parts*percent/100
 		if whole:
-			maxpoints = orig_total_coursepoints + orig_total_trackpoints*percent/100
+			maxpoints = orig_total_coursepoints + (orig_total_trackpoints - orig_total_coursepoints)*percent/100
 		if prnt:
-			print ("Aiming for: Retain %s%% of trackpoints, retain %s total trackpoints in each file"%(round(percent), maxpoints))
+			print ("Aiming for: %s files, retain %s%% of trackpoints, retain %s total trackpoints in each file"%(temp_num_parts, round(percent), round(maxpoints/temp_num_parts)))
 			print ('\n')
 
-	return percent
+	return {'percent':percent,'maxturns':maxturns}
 
 #Return a tree with course elements x to y and all others, including corresponding track elements, removed
 
@@ -476,10 +538,11 @@ def tree_prune(tree, root, first, last):
 	print ("Result written to " + new_name)
 	print ("Trimmed to: %s courses, %s tracks, %s trackpoints, %s coursepoints"%(num_courses, num_tracks, num_trackpoints, num_coursepoints))
 """
-def process_file_segments (tree, root, inputfilename, maxturns, maxpoints, percent, clean):
+def process_file_segments (tree, root, inputfilename, maxturns, split, maxpoints, percent, cleancourse, cleannotes, trimnotes):
 	
 	#num_parts = math.ceil(orig_total_coursepoints/maxturns)
-	count_file(root, percent, maxpoints, 1, maxturns, True, True)
+	ret = count_file(root, percent, maxpoints, 1, maxturns, split, True, True)
+	maxturns = ret['maxturns']
 	num_parts = math.ceil(orig_total_coursepoints/maxturns)
 	turns_per_part = math.floor(orig_total_coursepoints/num_parts)
 	total_coursepoints = orig_total_coursepoints
@@ -492,14 +555,16 @@ def process_file_segments (tree, root, inputfilename, maxturns, maxpoints, perce
 			prnt=True
 		newtree = copy.deepcopy(tree)
 		newroot = newtree.getroot()
-
-		segmentpercent = count_file(newroot, percent, maxpoints, num_parts, maxturns, False)	
-		process_file(newtree, newroot, "%i_%s"%(i+1,inputfilename), num_parts, segmentpercent, start_turn, end_turn, clean, prnt)
+		ret = count_file(newroot, percent, maxpoints, num_parts, maxturns, False)	
+		segmentpercent = ret ['percent']
+		process_file(newtree, newroot, "%i_%s"%(i+1,inputfilename), num_parts, segmentpercent, start_turn, end_turn, cleancourse, cleannotes, trimnotes, prnt)
 
 
 				
 
 def main(argv=None):
+	global prefix
+
 	arguments = docopt(__doc__)
 	inputfilename = arguments["INPUTFILE"]
 	if not inputfilename.endswith('.tcx'):
@@ -508,43 +573,82 @@ def main(argv=None):
 	
 	percent = 50
 	maxpoints = 0
-	maxturns= 150
-	clean=False
+	maxturns= 80
+	split=0
+	cleancourse=False
+	cleannotes=False
+	trimnotes=False
 
-	if arguments['--maxturns']:
+	if arguments['--maxturns'] and isInt(arguments['--maxturns']):
 		maxturns = int(arguments['--maxturns'])
 		assert (maxturns >= 0)
-		sys.stderr.write('Maximum Turns/Coursepoints in each TCX file = %d \n' % maxturns)
+		sys.stderr.write('Maximum Turns/Coursepoints in each output file: %d \n' % maxturns)
+		sys.stderr.flush()
+	elif arguments['--split'] and isInt(arguments['--split']):
+		split = int(arguments['--split'])
+		assert (split >= 0)
+		sys.stderr.write('Split TCX into %d separate output files \n' % maxturns)
 		sys.stderr.flush()
 	else:
-		maxturns=150
-		sys.stderr.write('Assuming DEFAULT Maximum Turns/Coursepoints in each TCX file at %d\n' % maxturns)
+		maxturns=80
+		sys.stderr.write('Assuming DEFAULT Maximum Turns/Coursepoints in each output file: %d\n' % maxturns)
 		sys.stderr.flush()
-	if arguments['--clean']:
-		clean=True
+
+
+	if arguments['--cleancourse']:
+		cleancourse=True
 		#if clean:
-		sys.stderr.write('Will strip Generic CoursePoints and Notes from all CoursePoints')
+		sys.stderr.write('Will strip all Generic CoursePoints\n')
 		#else:
 		#	sys.stderr.write('Will not strip Generic CoursePoints and Notes from all CoursePoints')
 		sys.stderr.flush()
 	else:
-		clean=False
-		sys.stderr.write('Will not strip Generic CoursePoints and Notes from all CoursePoints')
+		cleancourse=False
+		sys.stderr.write('Will not strip Generic CoursePoints\n')
 		sys.stderr.flush()
-	if arguments['--maxpoints']:
-		maxpoints = int(arguments['--maxpoints'])
-		assert (maxpoints >= 0)
-		sys.stderr.write('Maximum Trackpoints in TCX = %d \n' % maxpoints)
+	if arguments['--nocleannotes']:
+		cleannotes=False
+		#if clean:
+		sys.stderr.write('Will not strip Notes from all CoursePoints\n')
+		#else:
+		#	sys.stderr.write('Will not strip Generic CoursePoints and Notes from all CoursePoints')
 		sys.stderr.flush()
-	elif arguments['--percent']:
-		percent = int(arguments['--percent'])
-		assert (percent >= 0 and percent <= 100)
-		sys.stderr.write('Percent to retain = %d \n' % percent)
+	elif not arguments['--trimnotes']:
+		cleannotes=True
+		sys.stderr.write('Will strip Notes from all CoursePoints\n')
+		sys.stderr.flush()
+	if arguments['--trimnotes']:
+		trimnotes=True
+		cleannotes=False #must force this to false or there isn't much reason for --trimnotes
+		sys.stderr.write('Will trim Notes to 32 characters\n')	
 		sys.stderr.flush()
 	else:
-		maxpoints = 2000
-		sys.stderr.write('Assuming DEFAULT maximum trackpoints to retain at %i\n'%maxpoints)	
+		trimnotes=False
+		sys.stderr.write('Will not trim Notes to 32 characters\n')
 		sys.stderr.flush()
+
+	if arguments['--maxpoints'] and isInt(arguments['--maxpoints']):
+		maxpoints = int(arguments['--maxpoints'])
+		assert (maxpoints >= 0)
+		sys.stderr.write('Maximum Trackpoints in each output file = %d \n' % maxpoints)
+		sys.stderr.flush()
+	elif arguments['--percent'] and isInt(arguments['--percent']):
+		percent = int(arguments['--percent'])
+		maxpoints = 0
+		assert (percent >= 0 and percent <= 100)
+		sys.stderr.write('Percent of Trackpoints to retain = %d \n' % percent)
+		sys.stderr.flush()
+	else:
+		maxpoints = 500
+		sys.stderr.write('Assuming DEFAULT maximum Trackpoints in each output file: %i\n'%maxpoints)	
+		sys.stderr.flush()
+
+	if arguments['--prefix'] and len(arguments['--prefix'])>0:
+		prefix = arguments['--prefix']
+	sys.stderr.write('Output file prefix will be %s \n' % prefix)
+	sys.stderr.flush()
+
+
 	
 	sys.stderr.write(' \n')
 	sys.stderr.flush()
@@ -552,7 +656,7 @@ def main(argv=None):
 	tree = etree.parse(inputfilename)
 	root = tree.getroot()	
 
-	process_file_segments (tree, root, inputfilename, maxturns, maxpoints, percent, clean)
+	process_file_segments (tree, root, inputfilename, maxturns, split, maxpoints, percent, cleancourse, cleannotes, trimnotes)
 
 
 
