@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 
-"""VPRUNE.EXE HELP FILE
+"""VPRUNE.EXE/VPRUNE.PY HELP FILE
 
-VPrune prunes a .tcx file (RideWithGPS-compatible .tcx assumed) to reduce the number of Trackpoints (which draw the course on the map) without reducing number of CoursePoints (which give turn-by-turn directions).  It will also split a .tcx file into several smaller files if necessary.
 
-This will reduce the size of .tcx files downloaded from, e.g., RideWithGPS without eliminating the turn-by-turn instructions included as CoursePoints in the file. This makes the file more compatible with some GPS devices that cannot handle large .tcx files. It is specifically designed to work with Lezyne GPS devices but should work with others as well.
+VPrune can be run from the command line OR as a windows program (Windows) OR via web interface (Android)
 
-VPrune can be run from the command line or as a windows program
+ - If you simply start (or double click on) vprune.py/vprune.exe, a window will pop up - you can choose the file to process and other options
 
- - If you simply start (or double click on) vprune.exe, a window will pop up - you can choose the file to process and other options
+    - If using the web version, a web window should open; if not open a browser on your device and navigate to localhost:8081 or 127.0.0.1:8081
 
  - If you start vprune.exe from the command line with arguments as described below, it will run as a command line program
 
@@ -68,9 +67,27 @@ Options:
 #vprune.py [--maxturns=<num_turns per file, will split if greater, <= 0, default 150 >][--maxpoints=<num_points <0, default 2000 >] [--percent=<pct 0-100>] [--clean=<BOOL>] INPUTFILE
 
 #from __future__ import print_function
-import re, sys, os,random, datetime, math, copy, time #, pytz
-import PySimpleGUI as sg
+
+import re, sys, os,random, datetime, math, copy, html, time, platform #, pytz
 from docopt import docopt
+from io import StringIO
+
+#will run as gui on Windows or other platforms and web on android
+#will run as command line prg on either one
+weborgui = 'gui'
+platform=platform.system()
+if platform=='android':
+	weborgui = 'web'
+
+weborgui = 'web' #use to force web or gui for testing purposes
+
+print(platform, weborgui)
+
+if weborgui=='web':
+	import PySimpleGUIWeb as sg
+else:
+	import PySimpleGUI as sg
+
 try:
   from lxml import etree
   print("running with lxml.etree")
@@ -119,6 +136,37 @@ def isInt(s):
         return float(str(s)).is_integer()
     except:
         return False
+
+
+def checkbox_to_radio(window, event, values, delimiter='_'):
+	"""
+	Make a sequence of checkboxes act like linked radio buttons, in PySimpleGUI
+	You include a unique portion at the beginning of the key for the linked checkboxes, ending with a delimiter
+	So keys 1_checkup 1_checkdown 1_checkacross 1_checkover are all linked, as are 2_checkin 2_checkout
+	They are like radio buttons, so only one can be on at a time and you can't turn one off by clicking it, but by another choice
+	make sure one choice is clicked to start for best results.
+	This is necessary because radio buttons are not working in PySimpleGUIWeb, for now
+	"""
+	del_pos = (event.find('_'))
+	if del_pos == -1:
+		return
+	if (values[event] == False):
+		window.FindElement(event).Update(True) # can't turn an element off by clicking it (they're radios)
+		return
+	for value in values:
+		if event == value:
+			continue
+		vdel_pos = (event.find('_'))
+		if vdel_pos < 0:
+			continue
+		#print (event[:del_pos+1], value[:vdel_pos+1])
+		if event[:del_pos+1] == value[:vdel_pos+1]:
+			try:
+				window.FindElement(value).Update(False)
+			except:
+				print (value, "couldn't find or update element")
+
+
 
 # from https://stackoverflow.com/questions/26523929/add-update-elements-at-position-using-lxml-python
 def upsert_entry(parent, index, insertdict, begindict, enddict):
@@ -346,7 +394,7 @@ def process_file(tree, root, tcxfile, num_parts, percent, first, last, cleancour
 	"""
 	Process the whole TCX file.
 	"""
-	global num_coursepoints, num_trackpoints, num_tracks, num_courses, prefix, gui, progress_window
+	global num_coursepoints, num_trackpoints, num_tracks, num_courses, prefix, gui, progress_window, mystdout
 	
 
 	for element in root.iter():
@@ -414,6 +462,8 @@ def process_file(tree, root, tcxfile, num_parts, percent, first, last, cleancour
 			
 	print('\n')
 	if gui:
+		result_string = mystdout.getvalue()			
+		progress_window.FindElement('progresstext').Update(result_string)
 		progress_window.Refresh()
 	#sys.stderr.flush()
 
@@ -422,7 +472,7 @@ def count_file(root, percent, maxpoints, num_parts=1, maxturns=500, split=0, prn
 	"""
 	Count # of Trackpoints & Coursepoints in the whole TCX file.
 	"""
-	global num_coursepoints, num_trackpoints, num_tracks, num_courses, orig_total_coursepoints, orig_total_courses,orig_total_trackpoints,orig_total_tracks, gui, progress_window
+	global num_coursepoints, num_trackpoints, num_tracks, num_courses, orig_total_coursepoints, orig_total_courses,orig_total_trackpoints,orig_total_tracks, gui, progress_window, mystdout
 
 	orig_total_courses = 0
 	orig_total_tracks = 0
@@ -516,6 +566,8 @@ def count_file(root, percent, maxpoints, num_parts=1, maxturns=500, split=0, prn
 			print ("Aiming for: %s files, retain %s%% of trackpoints, retain %s total trackpoints in each file"%(temp_num_parts, round(percent), round(maxpoints/temp_num_parts)))
 			print ('\n')
 	if gui:
+		result_string = mystdout.getvalue()			
+		progress_window.FindElement('progresstext').Update(result_string)
 		progress_window.Refresh()
 	return {'percent':percent,'maxturns':maxturns}
 
@@ -557,7 +609,7 @@ def tree_prune(tree, root, first, last):
 	print ("Trimmed to: %s courses, %s tracks, %s trackpoints, %s coursepoints"%(num_courses, num_tracks, num_trackpoints, num_coursepoints))
 """
 def process_file_segments (tree, root, inputfilename, maxturns, split, maxpoints, percent, cleancourse, cleannotes, trimnotes):
-	global gui, progress_window, progress_bar, progress
+	global gui, progress_window, progress_bar, progress, mystdout
 	#num_parts = math.ceil(orig_total_coursepoints/maxturns)
 	ret = count_file(root, percent, maxpoints, 1, maxturns, split, True, True)
 	maxturns = ret['maxturns']
@@ -578,16 +630,19 @@ def process_file_segments (tree, root, inputfilename, maxturns, split, maxpoints
 		segment_filename = os.path.join(os.path.dirname(inputfilename), "%i_%s"%(i+1,os.path.basename(inputfilename)))
 		process_file(newtree, newroot, segment_filename, num_parts, segmentpercent, start_turn, end_turn, cleancourse, cleannotes, trimnotes, prnt)
 		if gui:
+			result_string = mystdout.getvalue()			
+			progress_window.FindElement('progresstext').Update(result_string)
 			progress_window.Refresh()
-			progress= 100/num_parts*(i+1)
-			progress_bar.UpdateBar(progress)
+			progress= 100/num_parts*(i+1)			
+			if weborgui != 'web':
+				progress_bar.UpdateBar(progress)
 		#sys.stderr.flush()
 
 
 				
 
 def main(argv=None):
-	global prefix, progress_window, progress_bar, progress, gui
+	global prefix, progress_window, progress_bar, progress, gui, mystdout, weborgui
 
 	arguments = docopt(__doc__)
 	inputfilename = arguments["INPUTFILE"]
@@ -602,40 +657,93 @@ def main(argv=None):
 	trimnotes=False
 	gui=False
 	progress_debug=False
+	window_bcolor='lightgray'
+	multiline_bcolor='white'
+	sg.SetOptions(
+		background_color=window_bcolor, text_element_background_color=window_bcolor, 
+		element_background_color=window_bcolor, scrollbar_color=None,		
+		input_elements_background_color=multiline_bcolor
+		)
+	
 
-
-	layout = [[sg.Text('                                    Vprune will simplify your .tcx files by trimming points and splitting the file into several smaller files')],
+	layout = [[sg.Text('                                    VPrune will simplify your .tcx files by trimming points and splitting the file into several smaller files')],
 				[sg.Text('                         With default options it will produce files suitable for use with Lezyne GPS units and perhaps other GPS units as well')],
-				[sg.Text('')],
-				[sg.Text('                                                                                       SPLIT THE FILE', font=(18), justification='center')],
-				[sg.Text('                       '),sg.Radio('Use Max Turns                                                                                     ', "RADIOSPLIT", default=True, key='usemaxturns'), sg.Radio('Use File Split #                      ', "RADIOSPLIT", key='usesplit')],
-				[sg.Text('            Max Turns per output file'), sg.InputText('80', key='maxturns', size=[5,1]), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', size=[4,1]), sg.Text('new files') ],
-				[sg.Text('')],
-				[sg.Text('                                                                              REDUCE TRACKPOINTS', font=(18),justification='center')],
-				[sg.Text('                  '),sg.Radio('Use Max Trackpoints                                                                          ', "RADIOTRACKPOINTS", default=True, key='usemaxpoints'), sg.Radio('Use Percentage of Trackpoints               ', "RADIOTRACKPOINTS", key='usepercent')],
-				[sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500',key='maxpoints', size=[5,1]), sg.Text('             OR                        Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1]), sg.Text('(0-100)') ],
-				[sg.Text('')],
-				[sg.Text('File prefix for processed files'), sg.InputText('vp_',key='prefix', size=[15,1]), sg.Text('If more than one file, names will be, ie, vp_1_yourfilename.tcx, vp_2_yourfilename.tcx, ...') ],
-				[sg.Text('')],
-				[sg.Text('                                                                           CLEAN THE OUTPUT FILES', font=(18),justification='center')],
-				[sg.Text('                                                                    '),sg.Checkbox('Strip all "Generic" CoursePoints', key='cleancourse')],				  
-				[sg.Text('                                           '),sg.Radio('Remove all Notes     ', "RADIO1", default=True, key='cleannotes'), sg.Radio('Trim/clean Notes', "RADIO1", key='trimnotes'), sg.Radio('Leave Notes alone', "RADIO1", key='nocleannotes')],
-				#[sg.Checkbox('Show progress Debug Window', key='progress_debug')],
-				[sg.Text('                                                                            CHOOSE THE DOCUMENT',font=(18))],
-				[sg.In(key='inputfile', size=[108,10], focus=True), sg.FileBrowse()],
-				[sg.Text('                                                                                  '),sg.Open('Process File'),sg.Text(' '), sg.Exit(), sg.Text('                                                                   '), sg.Help("Help")]]
+				[sg.Text('')],				
 
-	main_window = sg.Window('VPrune', layout, text_justification='center', use_default_focus=False)
+				[sg.Frame('',[
+					[sg.Text('                                               SPLIT THE FILE',font=('default',19,'italic'), justification='center')],
+					[sg.Text('                       '),sg.Checkbox('Use Max Turns                                                                                     ', default=True,enable_events=True,key='1_usemaxturns'), sg.Checkbox('Use File Split #                      ', enable_events=True,key='1_usesplit')],
+					[sg.Text('            Max Turns per output file'), sg.InputText('80', key='maxturns', size=[5,1]), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', size=[4,1]), sg.Text('new files                  ') ],
+					[sg.Text('')],
+				], background_color=window_bcolor)],
+				[sg.Frame('',[
+					[sg.Text('                                        REDUCE TRACKPOINTS',font=('default',18,'italic'),justification='center')],
+					[sg.Text('                  '),sg.Checkbox('Use Max Trackpoints                                                                          ', enable_events=True, default=True,key='2_usemaxpoints'), sg.Checkbox('Use Percentage of Trackpoints               ', enable_events=True, key='2_usepercent')],
+					[sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500',key='maxpoints', size=[5,1]), sg.Text('             OR                        Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1]), sg.Text('(0-100)') ],
+					[sg.Text('')],
+					[sg.Text('File prefix for processed files'), sg.InputText('vp_',key='prefix', size=[15,1]), sg.Text('If more than one file, names will be, ie, vp_1_yourfilename.tcx, vp_2_yourfilename.tcx, ...') ],
+					[sg.Text('')],
+				], background_color=window_bcolor)],
+				[sg.Frame('',[
+					[sg.Text('                                      CLEAN THE OUTPUT FILES',font=('default',18,'italic'),justification='center')],
+					[sg.Text('                                                                    '),sg.Checkbox('Strip all "Generic" CoursePoints', key='cleancourse')],				  
+					[sg.Text('                                           '),sg.Checkbox('Remove all Notes     ', default=True,enable_events=True, key='3_cleannotes'), sg.Checkbox('Trim/clean Notes', enable_events=True, key='3_trimnotes'), sg.Checkbox('Leave Notes alone                                                   ', enable_events=True, key='3_nocleannotes')],
+				#[sg.Checkbox('Show progress Debug Window', key='progress_debug')],
+					[sg.Text('')],
+				], background_color=window_bcolor)],
+
+				[sg.Frame('',[
+					[sg.Text('                                       CHOOSE THE DOCUMENT',font=('default',18,'italic'))],
+				#[sg.In(key='inputfile', size=[50,1], focus=True)],
+					[sg.Text('                                      '),sg.In(key='inputfile', size=[70,1], focus=True), sg.FileBrowse(), sg.Text('                    ')],
+				], background_color=window_bcolor)],
+				[sg.Text('')],
+				[sg.Text('                                                                                  '),sg.Open('Process File'),sg.Text(' '), sg.Exit(), sg.Text('                                                                   '), sg.Help("Help")],
+				[sg.Text('')],
+				[sg.Multiline('', visible=False, key='webnotes', size=(700,200))],
+
+				]
+	
+	if weborgui=='web':
+		main_window = sg.Window('VPrune', layout, text_justification='center', use_default_focus=False, background_color=window_bcolor, web_port=8081)
+	else:
+		main_window = sg.Window('VPrune', layout, text_justification='center', use_default_focus=False, background_color=window_bcolor)
+	
+
+	main_window.Finalize()	
+
+	
+	if weborgui == 'web':
+		webnotes = '''VPrune - Special Notes for Web Edition:
+
+		 * Light gray numbers in text fields will not be entered - you MUST manually type a number in each field (for the values you will use)
+
+		 * The BROWSE button will not work - you will have to manually type the filename in the input field
+
+		 * To avoid typing directory names, run VPrune in the same directory as your .tcx files
+
+		 * To avoid typing long filenames, rename your .tcx to a short, simple name
+		'''
+		main_window.FindElement('webnotes').Update(webnotes, visible=True)
+	
+
+
 	main_window_disabled=False
 
 	while True:
 		if not isinstance(inputfilename, str) or len(inputfilename)==0 or gui==True:
 			if main_window_disabled:
-				main_window.Enable()
+				if weborgui != 'web':
+					main_window.Enable()
 				main_window_disabled=False
-			event, values = main_window.Read()
 
-			#window.Close()
+			while True:
+				event, values = main_window.Read()
+				#print (event, values)
+				checkbox_to_radio(main_window, event, values, "_")
+				if event in (None, 'Exit', 'Process File', 'Help'):
+					break
+
 
 			gui=True
 
@@ -644,13 +752,40 @@ def main(argv=None):
 			#sys.stderr.flush()
 			if (event=="Exit") or event is None:
 				main_window.Close()
+				exit()
 				break
 			elif event == "Help":
-				sg.PopupScrolled(__doc__,title='VPrune - Help',non_blocking=True)
+				#sg.PopupScrolled(__doc__,title='VPrune - Help',non_blocking=True)
+				#sg.PopupScrolled(__doc__,size=(600,400))				
+				#continue
+
+				if weborgui=='web':
+					sx=600
+					sy=600
+				else:
+					sx=80
+					sy=40
+
+				layout = [[sg.Text('VPrune Help')],					 						   						  
+						 [sg.Multiline('', size=(sx,sy), key='helptext', background_color=multiline_bcolor)],
+						 [sg.Submit('Close')]
+						 ]
+								
+				if weborgui=='web':
+					help_window = sg.Window('VPrune - Help', layout, keep_on_top=True, disable_minimize=True, background_color = window_bcolor, web_port=8081)
+				else:
+					help_window = sg.Window('VPrune - Help', layout, keep_on_top=True, disable_minimize=True)
+
+				#help_window = sg.Window('VPrune - Help', layout, keep_on_top=True, disable_minimize=True, web_port=8081)
+				help_window.Finalize()
+				help_window.FindElement('helptext').Update(html.escape(__doc__, quote=True))
+				help_window.Read()
+				help_window.Close()
 				continue
 			
-			main_window.Disable()
-			main_window_disabled=True
+			if weborgui != 'web':
+				main_window.Disable()
+				main_window_disabled=True
 			inputfilename = values['inputfile']
 
 
@@ -659,44 +794,66 @@ def main(argv=None):
 				sg.Popup("VPrune - No filename", "No filename supplied; please try again", keep_on_top=True)
 				#raise SystemExit("Cancelling: no filename supplied")
 				time.sleep(0.05)
-				main_window.BringToFront()
+				if weborgui != 'web':
+					main_window.BringToFront()
 				continue
 
 			elif not inputfilename.lower().endswith('.tcx'):				
 					sg.Popup("VPrune - File not .tcx", "File must have .tcx extension; please try again", keep_on_top=True)
 					time.sleep(0.05)
-					main_window.BringToFront()					
+					if weborgui != 'web':
+						main_window.BringToFront()
 					continue
 					#raise SystemExit("Cancelling: filename must have .tcx extension")
 			elif not os.path.isfile(inputfilename):
 				sg.Popup("VPrune - File does not exist", "Sorry, this file does not exist; please try again", keep_on_top=True)
 				time.sleep(0.05)
-				main_window.BringToFront()
+				if weborgui != 'web':
+					main_window.BringToFront()
 				continue
 				#raise SystemExit("Cancelling: filename must have .tcx extension")
 			else:
-				layout = [[sg.Text('Confirm document to open and options')],					 
+
+				if weborgui=='web':
+					sx=690
+					sy=430
+				else:
+					sx=80
+					sy=18
+
+				layout = [[sg.Text('Confirm document to open and options',font=('default',18,'italic'))],					 
 						   
-						  [sg.Output(size=(80, 18))],
+						  #[sg.Output(size=(80, 18))],
+						 [sg.Multiline("",key='confirmtext', size=(sx,sy), background_color=multiline_bcolor)],
 						 [sg.Submit('Confirm'), sg.Cancel()]]
 
-				confirm_window = sg.Window('VPrune - Confirm file name and options', layout, keep_on_top=True, disable_minimize=True)
+				#confirm_window = sg.Window('VPrune - Confirm file name and options', layout, keep_on_top=True, disable_minimize=True, web_port=8081)
+				if weborgui=='web':
+					confirm_window = sg.Window('VPrune - Confirm file name and options', layout, keep_on_top=True, disable_minimize=True, background_color = window_bcolor, web_port=8081)
+				else:
+					confirm_window = sg.Window('VPrune - Confirm file name and options', layout, keep_on_top=True, disable_minimize=True)
+
 				confirm_window.Finalize()
-				print ("Input file:", inputfilename, "\n")
+				
 				
 
 				#inputfilename = values[0]
 				#print(values)
 
 				#sg.Popup('The filename you chose was', inputfilename)
-
 			
-			if values['usemaxturns'] and len(values['maxturns']) > 0 and int(round(float(values['maxturns']))) > 0:
+			# start capturing all text output
+			old_stdout = sys.stdout
+			sys.stdout = mystdout = StringIO()
+			print ("Input file:", inputfilename, "\n")
+
+
+			if values['1_usemaxturns'] and len(values['maxturns']) > 0 and int(round(float(values['maxturns']))) > 0:
 				maxturns = int(round(float(values['maxturns'])))
 				assert (maxturns >= 0)
 				print('Maximum Turns/Coursepoints in each output file: %d \n' % maxturns)
 				#sys.stderr.flush()
-			elif values['usesplit'] and len(values['split']) > 0 and int(round(float(values['split']))) > 0:
+			elif values['1_usesplit'] and len(values['split']) > 0 and int(round(float(values['split']))) > 0:
 				split = int(round(float(values['split'])))
 				assert (split >= 0)
 				print('Split TCX into %d separate output files \n' % split)
@@ -718,7 +875,7 @@ def main(argv=None):
 				print('Will not strip Generic CoursePoints\n')
 				#sys.stderr.flush()
 
-			if values['nocleannotes']:
+			if values['3_nocleannotes']:
 				cleannotes=False
 				trimnotes=False
 				#if clean:
@@ -726,23 +883,23 @@ def main(argv=None):
 				#else:
 				#	print('Will not strip Generic CoursePoints and Notes from all CoursePoints')
 				#sys.stderr.flush()
-			elif values['trimnotes']:
+			elif values['3_trimnotes']:
 				cleannotes=False
 				trimnotes=True
 				print('Will trim Notes in CoursePoints to 32 characters\n')	
 				#sys.stderr.flush()
-			elif values['cleannotes']:
+			elif values['3_cleannotes']:
 				trimnotes=False
 				cleannotes=True 
 				print('Will completely strip Notes from all CoursePoints\n')
 				#sys.stderr.flush()
 
-			if values['usemaxpoints'] and len(values['maxpoints']) > 0 and int(round(float(values['maxpoints']))) > 0:
+			if values['2_usemaxpoints'] and len(values['maxpoints']) > 0 and int(round(float(values['maxpoints']))) > 0:
 				maxpoints = int(round(float(values['maxpoints'])))
 				assert (maxpoints >= 0)
 				print('Maximum Trackpoints in each output file = %d \n' % maxpoints)
 				#sys.stderr.flush()
-			elif values['usepercent'] and len(values['percent']) > 0 and int(round(float(values['percent']))) >= 0 and int(round(float(values['percent']))) <= 100:
+			elif values['2_usepercent'] and len(values['percent']) > 0 and int(round(float(values['percent']))) >= 0 and int(round(float(values['percent']))) <= 100:
 				percent = int(round(float(values['percent'])))
 				maxpoints = 0
 				assert (percent >= 0 and percent <= 100)
@@ -753,17 +910,23 @@ def main(argv=None):
 				print('Assuming DEFAULT maximum Trackpoints in each output file: %i\n'%maxpoints)	
 				#sys.stderr.flush()
 
-			if arguments['--prefix'] and len(arguments['--prefix'])>0:
-				prefix = arguments['--prefix']
+			if values['prefix'] and len(values['prefix'])>0:
+				prefix = values['prefix']
 			print('Output file prefix will be %s \n' % prefix)
 			#sys.stderr.flush()
 
+			sys.stdout = old_stdout
+						
+			result_string = mystdout.getvalue()
+			
+			confirm_window.FindElement('confirmtext').Update(result_string)
 
 			event, values = confirm_window.Read()
 			confirm_window.Close()
 			if event=="Cancel":
 				time.sleep(0.05)
-				main_window.BringToFront()				
+				if weborgui != 'web':
+					main_window.BringToFront()
 				continue
 
 
@@ -856,18 +1019,34 @@ def main(argv=None):
 
 		if gui:
 				time.sleep(0.05)
-				main_window.BringToFront()
+
+				if weborgui=='web':
+					sx=600
+					sy=600
+				else:
+					sx=80
+					sy=20
+
+				if weborgui != 'web':
+					main_window.BringToFront()
+
 				layout = [#[sg.Text('Working . . . please wait')],					 
 						  #[sg.Text('')],					 
-						  [sg.Text('Processing file:')],					 
-						  [sg.Text(inputfilename, size=[75,5])],
-						  [sg.Output(size=(80, 20))],
-						  [sg.ProgressBar(100, orientation='h', size=(60, 15), key='progressbar')],
+						  [sg.Text('Processing file:', font=('default',19,'italic'))],					 
+						  [sg.Text(inputfilename, size=(75,1))],
+						  [sg.Multiline("",size=(sx,sy), key='progresstext', background_color=multiline_bcolor, autoscroll=True)],
+						  #[sg.Output(size=(80, 20))],
+						  [sg.ProgressBar(100, orientation='h', size=(55, 15), key='progressbar')],
 						  [sg.Submit('Wait . . .', key='submit', disabled=True)],
 						  
 						 ]
 			
-				progress_window = sg.Window('VPrune - Processing . . . ', layout, keep_on_top=True, disable_minimize=True)
+				#progress_window = sg.Window('VPrune - Processing . . . ', layout, keep_on_top=True, disable_minimize=True,web_port=8081)
+				if weborgui=='web':
+					progress_window = sg.Window('VPrune - Processing . . . ', layout, keep_on_top=True, disable_minimize=True, background_color = window_bcolor, web_port=8081)
+				else:
+					progress_window = sg.Window('VPrune - Processing . . . ', layout, keep_on_top=True, disable_minimize=True)
+
 				progress_bar = progress_window.FindElement('progressbar')
 				progress=0
 				#event, values = window.Read()
@@ -877,17 +1056,27 @@ def main(argv=None):
 				tree = etree.parse(inputfilename)
 				root = tree.getroot()	
 
+				# start capturing all text output
+				old_stdout = sys.stdout
+				sys.stdout = mystdout = StringIO()
+
 				process_file_segments (tree, root, inputfilename, maxturns, split, maxpoints, percent, cleancourse, cleannotes, trimnotes)
 
 				print ("PROCESSING COMPLETED")
 				print ("\n\nProcessed file(s) will start with", prefix," and are in the same directory as your original .tcx file \n" + os.path.dirname(inputfilename))
+				sys.stdout = old_stdout
+						
+				result_string = mystdout.getvalue()			
+				progress_window.FindElement('progresstext').Update(result_string)
+
 				progress_window.FindElement('submit').Update('Finished',disabled=False)
 				#progress_window.Refresh()
 				event, values = progress_window.Read()
 				
 				progress_window.Close()		
 				time.sleep(0.05)
-				main_window.BringToFront()		
+				if weborgui != 'web':
+					main_window.BringToFront()
 				#sg.Popup("VPrune - Completed!", "File Processed!\nFile is in the same file as your original .tcx file \n" + os.path.dirname(inputfilename))			
 		else:
 			tree = etree.parse(inputfilename)
@@ -895,9 +1084,10 @@ def main(argv=None):
 
 			process_file_segments (tree, root, inputfilename, maxturns, split, maxpoints, percent, cleancourse, cleannotes, trimnotes)
 			break
-
-	main_window.Close()
+	if gui:
+		main_window.Close()
 
 
 if __name__ == "__main__":
 	sys.exit(main())
+exit()
