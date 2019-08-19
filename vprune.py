@@ -99,10 +99,12 @@ except ImportError:
 #print(platform, weborgui)
 
 #print("%x" % sys.maxsize, sys.maxsize > 2**32)
+'''
 if (sys.maxsize > 2**32):
 	print ("64 bit Python")
 else:
 	print ("32 bit Python")
+'''
 
 if weborgui=='web':
 	import PySimpleGUIWeb as sg
@@ -187,7 +189,7 @@ def checkbox_to_radio(window, event, values, delimiter='_'):
 	"""
 	if event is None:
 		return
-
+	
 	#Little kludge here
 	if event=='percent':
 		window.FindElement('2_usepercent').Update(True)
@@ -205,6 +207,7 @@ def checkbox_to_radio(window, event, values, delimiter='_'):
 		window.FindElement('1_usemaxturns').Update(False)
 		window.FindElement('1_usesplit').Update(True)
 		return
+	
 
 	del_pos = (event.find('_'))
 	if del_pos == -1:
@@ -722,6 +725,7 @@ def main(argv=None):
 	trimnotes=False
 	gui=False
 	progress_debug=False
+
 	window_bcolor='lightgray'
 	multiline_bcolor='white'
 	sg.SetOptions(
@@ -729,6 +733,13 @@ def main(argv=None):
 		element_background_color=window_bcolor, scrollbar_color=None,		
 		input_elements_background_color=multiline_bcolor
 		)
+
+	turn_split = [sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', enable_events=True, size=[5,1], default_text="80"), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', enable_events=True, size=[4,1]), sg.Text('new files                  ') ]
+	track_percent = [sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500',key='maxpoints', enable_events=True, size=[5,1]),  sg.Text('             OR                        Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1], enable_events=True), sg.Text('(0-100)') ]
+	if weborgui == 'web':
+		#Can't have enable_events=True for InputText elements in PySimpleGUIWeb because of a bug, for now.  2019/08
+		turn_split = [sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', size=[5,1], default_text="80"), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', size=[4,1]), sg.Text('new files                  ') ]
+		track_percent = [sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500', key='maxpoints', size=[5,1]),  sg.Text('             OR                        Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1]), sg.Text('(0-100)') ]
 	
 
 	layout = [[sg.Text('                                    VPrune will simplify your .tcx files by trimming points and splitting the file into several smaller files')],
@@ -738,14 +749,14 @@ def main(argv=None):
 				[sg.Frame('',[
 					[sg.Text('                                               SPLIT THE FILE',font=('default',19,'italic'), justification='center')],
 					[sg.Text('                       '),sg.Checkbox('Use Max Turns                                                                                     ', default=True,enable_events=True,key='1_usemaxturns'), sg.Checkbox('Use File Split #                      ', enable_events=True,key='1_usesplit')],
-					[sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', size=[5,1], enable_events=True, default_text="80"), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', enable_events=True, size=[4,1]), sg.Text('new files                  ') ],
+					turn_split,
 					[sg.Text('')],
 				], background_color=window_bcolor)],
 
 				[sg.Frame('',[
 					[sg.Text('                                        REDUCE TRACKPOINTS',font=('default',18,'italic'),justification='center')],
 					[sg.Text('                  '),sg.Checkbox('Use Max Trackpoints                                                                          ', enable_events=True, default=True,key='2_usemaxpoints'), sg.Checkbox('Use Percentage of Trackpoints               ', enable_events=True, key='2_usepercent')],
-					[sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500',key='maxpoints', enable_events=True, size=[5,1]),  sg.Text('             OR                        Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1], enable_events=True), sg.Text('(0-100)') ],
+					track_percent,
 					[sg.Text('')],
 					[sg.Text('File prefix for processed files'), sg.InputText('vp_',key='prefix', size=[15,1]), sg.Text('If more than one file, names will be, ie, vp_1_yourfilename.tcx, vp_2_yourfilename.tcx, ...') ],
 					[sg.Text('')],
@@ -779,6 +790,7 @@ def main(argv=None):
 	
 	if not isinstance(inputfilename, str) or len(inputfilename)==0:
 		gui = True
+	
 
 	if gui:
 		main_window.Finalize()	
@@ -790,7 +802,7 @@ def main(argv=None):
  * The BROWSE button will not work - you will have to manually type the filename in the input field
 
  * To avoid typing directory names (needed as part of the filename, if you are not in the 
-		 correct directory), run VPrune in the same directory as your .tcx files
+    correct directory), run VPrune in the same directory as your .tcx files
 
  * To avoid typing long filenames, rename your .tcx to a short, simple name
 			'''
@@ -802,7 +814,6 @@ def main(argv=None):
 			main_window.FindElement('prefix').Update(prefix)
 			main_window.FindElement('inputfile').Update('.tcx')
 	
-
 
 	main_window_disabled=False
 
