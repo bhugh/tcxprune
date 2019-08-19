@@ -79,7 +79,7 @@ platform=platform.system()
 if platform=='android':
 	weborgui = 'web'
 
-weborgui = 'web' #use to force web or gui for testing purposes
+#weborgui = 'web' #use to force web or gui for testing purposes
 
 print(platform, weborgui)
 
