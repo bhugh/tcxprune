@@ -173,6 +173,25 @@ def checkbox_to_radio(window, event, values, delimiter='_'):
 	"""
 	if event is None:
 		return
+
+	#Little kludge here
+	if event=='percent':
+		window.FindElement('2_usepercent').Update(True)
+		window.FindElement('2_usemaxpoints').Update(False)
+		return
+	if event=='maxpoints':
+		window.FindElement('2_usepercent').Update(False)
+		window.FindElement('2_usemaxpoints').Update(True)
+		return
+	if event=='maxturns':
+		window.FindElement('1_usemaxturns').Update(True)
+		window.FindElement('1_usesplit').Update(False)
+		return
+	if event=='split':
+		window.FindElement('1_usemaxturns').Update(False)
+		window.FindElement('1_usesplit').Update(True)
+		return
+
 	del_pos = (event.find('_'))
 	if del_pos == -1:
 		return
@@ -705,17 +724,19 @@ def main(argv=None):
 				[sg.Frame('',[
 					[sg.Text('                                               SPLIT THE FILE',font=('default',19,'italic'), justification='center')],
 					[sg.Text('                       '),sg.Checkbox('Use Max Turns                                                                                     ', default=True,enable_events=True,key='1_usemaxturns'), sg.Checkbox('Use File Split #                      ', enable_events=True,key='1_usesplit')],
-					[sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', size=[5,1], default_text="80"), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', size=[4,1]), sg.Text('new files                  ') ],
+					[sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', size=[5,1], enable_events=True, default_text="80"), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', enable_events=True, size=[4,1]), sg.Text('new files                  ') ],
 					[sg.Text('')],
 				], background_color=window_bcolor)],
+
 				[sg.Frame('',[
 					[sg.Text('                                        REDUCE TRACKPOINTS',font=('default',18,'italic'),justification='center')],
 					[sg.Text('                  '),sg.Checkbox('Use Max Trackpoints                                                                          ', enable_events=True, default=True,key='2_usemaxpoints'), sg.Checkbox('Use Percentage of Trackpoints               ', enable_events=True, key='2_usepercent')],
-					[sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500',key='maxpoints', size=[5,1]), sg.Text('             OR                        Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1]), sg.Text('(0-100)') ],
+					[sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500',key='maxpoints', enable_events=True, size=[5,1]),  sg.Text('             OR                        Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1], enable_events=True), sg.Text('(0-100)') ],
 					[sg.Text('')],
 					[sg.Text('File prefix for processed files'), sg.InputText('vp_',key='prefix', size=[15,1]), sg.Text('If more than one file, names will be, ie, vp_1_yourfilename.tcx, vp_2_yourfilename.tcx, ...') ],
 					[sg.Text('')],
 				], background_color=window_bcolor)],
+
 				[sg.Frame('',[
 					[sg.Text('                                      CLEAN THE OUTPUT FILES',font=('default',18,'italic'),justification='center')],
 					[sg.Text('                                                                    '),sg.Checkbox('Strip all "Generic" CoursePoints', key='cleancourse')],				  
