@@ -79,16 +79,30 @@ import re, sys, os,random, datetime, math, copy, html, time, platform #, pytz
 from docopt import docopt
 from io import StringIO
 
+try:
+  import tkinter
+  print("tkinter available, can run windowed GUI")
+  weborgui='gui'
+except ImportError:
+	print("tkinter not available, can run web GUI")
+	weborgui='web'
+
 #will run as gui on Windows or other platforms and web on android
 #will run as command line prg on either one
-weborgui = 'gui'
-platform=platform.system()
-if platform=='android':
-	weborgui = 'web'
+#weborgui = 'gui'
+#platform=platform.system()
+#if platform=='android':
+#	weborgui = 'web'
 
-#weborgui = 'web' #use to force web or gui for testing purposes
+#weborgui = 'web' #use to force web or gui for testing purposes or if desired on your system
 	
-print(platform, weborgui)
+#print(platform, weborgui)
+
+#print("%x" % sys.maxsize, sys.maxsize > 2**32)
+if (sys.maxsize > 2**32):
+	print ("64 bit Python")
+else:
+	print ("32 bit Python")
 
 if weborgui=='web':
 	import PySimpleGUIWeb as sg
@@ -763,28 +777,30 @@ def main(argv=None):
 	else:
 		main_window = sg.Window('VPrune', layout, text_justification='center', use_default_focus=False, background_color=window_bcolor)
 	
+	if not isinstance(inputfilename, str) or len(inputfilename)==0:
+		gui = True
 
 	if gui:
 		main_window.Finalize()	
 
 	
-	if weborgui == 'web':
-		webnotes = '''VPrune - Special Notes for Web Edition:		 
+		if weborgui == 'web':
+			webnotes = '''VPrune - Special Notes for Web Edition:		 
 
-  * The BROWSE button will not work - you will have to manually type the filename in the input field
+ * The BROWSE button will not work - you will have to manually type the filename in the input field
 
-  * To avoid typing directory names (needed as part of the filename, if you are not in the 
-     correct directory), run VPrune in the same directory as your .tcx files
+ * To avoid typing directory names (needed as part of the filename, if you are not in the 
+		 correct directory), run VPrune in the same directory as your .tcx files
 
-  * To avoid typing long filenames, rename your .tcx to a short, simple name
-		'''
-		main_window.FindElement('webnotes').Update(webnotes, visible=True)
-		main_window.FindElement('maxturns').Update(str(maxturns))
-		main_window.FindElement('split').Update(str(split))
-		main_window.FindElement('maxpoints').Update(str(maxpoints))
-		main_window.FindElement('percent').Update(str(percent))
-		main_window.FindElement('prefix').Update(prefix)
-		main_window.FindElement('inputfile').Update('.tcx')
+ * To avoid typing long filenames, rename your .tcx to a short, simple name
+			'''
+			main_window.FindElement('webnotes').Update(webnotes, visible=True)
+			main_window.FindElement('maxturns').Update(str(maxturns))
+			main_window.FindElement('split').Update(str(split))
+			main_window.FindElement('maxpoints').Update(str(maxpoints))
+			main_window.FindElement('percent').Update(str(percent))
+			main_window.FindElement('prefix').Update(prefix)
+			main_window.FindElement('inputfile').Update('.tcx')
 	
 
 
@@ -804,9 +820,6 @@ def main(argv=None):
 				checkbox_to_radio(main_window, event, values, "_")
 				if event in (None, 'Exit', 'Process File', 'Help'):
 					break
-
-
-			gui=True
 
 
 			#print(event, values)
