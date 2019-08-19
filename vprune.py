@@ -764,7 +764,8 @@ def main(argv=None):
 		main_window = sg.Window('VPrune', layout, text_justification='center', use_default_focus=False, background_color=window_bcolor)
 	
 
-	main_window.Finalize()	
+	if gui:
+		main_window.Finalize()	
 
 	
 	if weborgui == 'web':
