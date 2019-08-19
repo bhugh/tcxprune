@@ -30,3 +30,34 @@ vprune is specifically designed process .tcx files created with RideWithGPS and 
 
 vprune INPUTFILE - ie, run with default settings, will clean Notes from entries, split the files, and eliminate Trackpoints as needed to create a series of files should upload/run OK with a Lezyne GPS device.
 
+RUNNING AS A WEB GUI UNDER ANDROID
+
+Now vprune.py runs as command line OR windowed app (Windows, Mac, Linux, etc) OR as a web GUI (android)
+
+Uses PySimpleGUI or PySimpleGuiWeb
+
+For Android, you'll need to use Termux or similar and pip install lxml, docopt, PySimpleGUI and PySimpleGUIWeb.
+
+On Termux there can be trouble installing lxml due to missing file dependencies. 
+
+Installing some combination of these files seemed to fix it:
+
+   pkg install libxml2-dev libxslt-dev libiconv-dev libxml2 libxslt libiconv
+
+There are some limitations to the web GUI version for now. Particularly, the "Browse Files" button doesn't work.  You will need to type the filename manually.
+
+Typically you'll follow this procedure on Android:
+
+ - Downloady your .tcx to the Download directory
+ - Rename the file something short and friendly like 123.tcx
+ - Also copy vprune.py to the Download directory
+ - Using Termux, switch to the Download directory and run 
+        python vprune.py
+ - Now go your your Android browser and navigate to localhost:8081 to operate vprune and process your files
+   
+vprune might work similarly on other phone and table operating systems.  However you would have to edit near the start of the files these lines:
+
+    if platform=='android':
+	    weborgui = 'web'
+
+Change 'android' to whatever platform.system() returns for your operating system
