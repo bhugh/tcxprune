@@ -648,10 +648,10 @@ def main(argv=None):
 	inputfilename = arguments["INPUTFILE"]
 	
 	saveprint = print
-	percent = 50
-	maxpoints = 0
+	percent = 25
+	maxpoints = 500
 	maxturns= 80
-	split=0
+	split=4
 	cleancourse=False
 	cleannotes=False
 	trimnotes=False
@@ -673,7 +673,7 @@ def main(argv=None):
 				[sg.Frame('',[
 					[sg.Text('                                               SPLIT THE FILE',font=('default',19,'italic'), justification='center')],
 					[sg.Text('                       '),sg.Checkbox('Use Max Turns                                                                                     ', default=True,enable_events=True,key='1_usemaxturns'), sg.Checkbox('Use File Split #                      ', enable_events=True,key='1_usesplit')],
-					[sg.Text('            Max Turns per output file'), sg.InputText('80', key='maxturns', size=[5,1]), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', size=[4,1]), sg.Text('new files                  ') ],
+					[sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', size=[5,1], default_text="80"), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', size=[4,1]), sg.Text('new files                  ') ],
 					[sg.Text('')],
 				], background_color=window_bcolor)],
 				[sg.Frame('',[
@@ -696,6 +696,7 @@ def main(argv=None):
 					[sg.Text('                                       CHOOSE THE DOCUMENT',font=('default',18,'italic'))],
 				#[sg.In(key='inputfile', size=[50,1], focus=True)],
 					[sg.Text('                                      '),sg.In(key='inputfile', size=[70,1], focus=True), sg.FileBrowse(), sg.Text('                    ')],
+					#Can try sg.FileBrowse OR sg.FilesBrowse
 				], background_color=window_bcolor)],
 				[sg.Text('')],
 				[sg.Text('                                                                                  '),sg.Open('Process File'),sg.Text(' '), sg.Exit(), sg.Text('                                                                   '), sg.Help("Help")],
@@ -725,6 +726,12 @@ def main(argv=None):
 		 * To avoid typing long filenames, rename your .tcx to a short, simple name
 		'''
 		main_window.FindElement('webnotes').Update(webnotes, visible=True)
+		main_window.FindElement('maxturns').Update(str(maxturns))
+		main_window.FindElement('split').Update(str(split))
+		main_window.FindElement('maxpoints').Update(str(maxpoints))
+		main_window.FindElement('percent').Update(str(percent))
+		main_window.FindElement('prefix').Update(prefix)
+		main_window.FindElement('inputfile').Update('.tcx')
 	
 
 
