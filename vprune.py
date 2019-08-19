@@ -2,12 +2,13 @@
 
 """VPRUNE.EXE/VPRUNE.PY HELP FILE
 
+VPrune prunes and split .tcx files to make them more compatible with Lezyne and other GPS devices that are unable to handle large and complex files.
 
 VPrune can be run from the command line OR as a windows program (Windows) OR via web interface (Android)
 
  - If you simply start (or double click on) vprune.py/vprune.exe, a window will pop up - you can choose the file to process and other options
 
-    - If using the web version, a web window should open; if not open a browser on your device and navigate to localhost:8081 or 127.0.0.1:8081
+    --> If using the web version, a web window should open; if not open a browser on your device and navigate to localhost:8081 or 127.0.0.1:8081
 
  - If you start vprune.exe from the command line with arguments as described below, it will run as a command line program
 
@@ -15,17 +16,23 @@ VPrune can be run from the command line OR as a windows program (Windows) OR via
 
 WHAT VPRUNE DOES AND WHY
 
-Trackpoints are the points that indicate the path of the route on the map. With too few Trackpoints the route becomes "jaggy" and doesn't follow roads or trails exactly.  With too many Trackpoints the file may be too large to upload to your GPS device.
+A .tcx file consists of a long list of Trackpoints and CoursePoints. The files are plain text--open one up in a text editor and take a look.
 
-In remove Trackpoints, vprune simply deletes points randomly. It does not attempt to use an optimizing algorithm. This seems to work well enough with RideWithGPS .tcx files. 
+Trackpoints are the most numerous. They are used to draw the detailed route. There are many fewer CoursePoints, because they are only the places where you get the "turn-by-turn" instructions.
+
+With too few Trackpoints the route becomes "jaggy" and doesn't follow roads or trails exactly.  With too many Trackpoints the file may be too large to upload to your GPS device.
+
+In remove Trackpoints, vprune simply deletes points randomly. It does not attempt to use an optimizing algorithm. This seems to work well enough with RideWithGPS style .tcx files--as long as you don't remove too many points.
 
 Every CoursePoint (ie, point with turn-by-turn direction) must have an corresponding Trackpoint. So Trackpoints that correspond to spots with a turn-by-turn direction are never removed.
 
-When you specify --percent to remove a percentage of Trackpoints, the trackpoints that correspond to a turn (CoursePoint) cannot be removed.  So, for example, --percent 0 will remove all Trackpoints except those corresponding to a turn.
+Via the entrt screen or command line, you can specify --percent to remove a percentage of Trackpoints.  So, for example, --percent 100 will leave all Trackpoints in place, while --percent 0 will remove all Trackpoints except those corresponding to a turn (remember, those can't be removed or the file won't work any more).
 
-vprune can also, optionally, split the file into several segments.  This allows the resulting files to be smaller and have better fidelity on the map, and also splits CoursePoints (with turn-by-turn directions) appropriately among the files. Many GPS devices will load smaller files with fewer CoursePoints more easily.
+VPrune can also, optionally, split the file into several segments.  This allows the resulting files to be smaller and have better fidelity on the map.
 
-When the file is split into several files, each file overlaps the other at one CoursePoint (turn-by-turn direction point). So when you reach that turn you can simply load the next file to continue.
+Splitting the route also splits CoursePoints (with turn-by-turn directions) appropriately among the files, meaning that each of these files has far fewer CoursePoints than the original. Many GPS devices have trouble processing .tcx files with too many CoursePoints, so splitting the file into several smaller files is the best way to preserve the turn-by-turn instructions while still allowing these files to work correctly with these devices.
+
+When the file is split into several files, each file overlaps the other at exactly one CoursePoint/turn-by-turn direction point. So when you reach the end of one file, you can simply load the next file to continue from that same point.
 
 By default, output files are named vp_INPUTFILE (if one outputfile) or vp_1_INPUTFILE, vp_2_INPUTFILE, etc, if more than one. You can change the file prefix as desired.
 
@@ -80,7 +87,7 @@ if platform=='android':
 	weborgui = 'web'
 
 #weborgui = 'web' #use to force web or gui for testing purposes
-
+	
 print(platform, weborgui)
 
 if weborgui=='web':
@@ -118,6 +125,7 @@ except ImportError:
 ns1 = 'http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2'
 ns2 = 'http://www.garmin.com/xmlschemas/ActivityExtension/v2'
 prefix = "vp_"
+gui = False
 num_courses = 0
 num_tracks = 0
 num_trackpoints = 0
@@ -129,7 +137,23 @@ orig_total_coursepoints = 0
 progress_window = []
 progress_bar = []
 progress = 0
-gui = False
+
+def initVals():
+	global num_courses,num_tracks,	num_trackpoints, num_coursepoints, orig_total_courses, orig_total_tracks, orig_total_trackpoints, orig_total_coursepoints, progress_window,	progress_bar, progress
+
+	num_courses = 0
+	num_tracks = 0
+	num_trackpoints = 0
+	num_coursepoints = 0
+	orig_total_courses = 0
+	orig_total_tracks = 0
+	orig_total_trackpoints = 0
+	orig_total_coursepoints = 0
+	progress_window = []
+	progress_bar = []
+	progress = 0
+
+initVals()
 
 def isInt(s):
     try:
@@ -147,6 +171,8 @@ def checkbox_to_radio(window, event, values, delimiter='_'):
 	make sure one choice is clicked to start for best results.
 	This is necessary because radio buttons are not working in PySimpleGUIWeb, for now
 	"""
+	if event is None:
+		return
 	del_pos = (event.find('_'))
 	if del_pos == -1:
 		return
@@ -533,14 +559,20 @@ def count_file(root, percent, maxpoints, num_parts=1, maxturns=500, split=0, prn
 
 	temp_num_parts = num_parts
 	if whole:
-		temp_num_parts = math.ceil(orig_total_coursepoints/maxturns)
-		if split>0:
+		if maxturns>0:
+			temp_num_parts = math.ceil(orig_total_coursepoints/maxturns)
+		elif split>0:
 			temp_num_parts = split
 			maxturns = math.ceil(orig_total_coursepoints/split)
+		else:
+			print ("ERROR! Neither split nor maxturns was properly specified. Using default value %s"%maxturns)
+			maxturns = 80
+			print ("ERROR! Neither split nor maxturns was properly specified. Using default value %s\n"%maxturns)
+			temp_num_parts = math.ceil(orig_total_coursepoints/maxturns)
 		
 	if prnt:
 		print ("Original file: %s courses, %s tracks, %s trackpoints, %s coursepoints"%(orig_total_courses, orig_total_tracks, orig_total_trackpoints, orig_total_coursepoints))
-		print ("Minimum trackpoints possible: %s trackpoints"%(orig_total_coursepoints))
+		print ("Minimum trackpoints possible: %s trackpoints (%s per output files)"%(orig_total_coursepoints, round(orig_total_coursepoints/temp_num_parts)))
 	if (maxpoints > 0):
 		#print ('B')
 		if (maxpoints < orig_total_coursepoints/temp_num_parts):
@@ -554,7 +586,7 @@ def count_file(root, percent, maxpoints, num_parts=1, maxturns=500, split=0, prn
 				#print ("Whole")
 				percent = (maxpoints*temp_num_parts-orig_total_coursepoints)*100/(orig_total_trackpoints-orig_total_coursepoints)
 		if prnt:
-			print ("Aiming for: %s files, retain %s%% of trackpoints, retain %s total trackpoints in each file"%(temp_num_parts, round(percent), maxpoints))
+			print ("Aiming for: %s files, retain %s%% of trackpoints, retain %s total trackpoints in each file"%(temp_num_parts, round(percent), round(maxpoints)))
 			print ('\n')
 	else:
 		maxpoints = orig_total_coursepoints/temp_num_parts + orig_total_trackpoints/temp_num_parts*percent/100
@@ -695,7 +727,7 @@ def main(argv=None):
 				[sg.Frame('',[
 					[sg.Text('                                       CHOOSE THE DOCUMENT',font=('default',18,'italic'))],
 				#[sg.In(key='inputfile', size=[50,1], focus=True)],
-					[sg.Text('                                      '),sg.In(key='inputfile', size=[70,1], focus=True), sg.FileBrowse(), sg.Text('                    ')],
+					[sg.Text('                                      '),sg.In('.tcx',key='inputfile', size=[70,1], focus=True), sg.FileBrowse(), sg.Text('                    ')],
 					#Can try sg.FileBrowse OR sg.FilesBrowse
 				], background_color=window_bcolor)],
 				[sg.Text('')],
@@ -715,15 +747,14 @@ def main(argv=None):
 
 	
 	if weborgui == 'web':
-		webnotes = '''VPrune - Special Notes for Web Edition:
+		webnotes = '''VPrune - Special Notes for Web Edition:		 
 
-		 * Light gray numbers in text fields will not be entered - you MUST manually type a number in each field (for the values you will use)
+  * The BROWSE button will not work - you will have to manually type the filename in the input field
 
-		 * The BROWSE button will not work - you will have to manually type the filename in the input field
+  * To avoid typing directory names (needed as part of the filename, if you are not in the 
+     correct directory), run VPrune in the same directory as your .tcx files
 
-		 * To avoid typing directory names, run VPrune in the same directory as your .tcx files
-
-		 * To avoid typing long filenames, rename your .tcx to a short, simple name
+  * To avoid typing long filenames, rename your .tcx to a short, simple name
 		'''
 		main_window.FindElement('webnotes').Update(webnotes, visible=True)
 		main_window.FindElement('maxturns').Update(str(maxturns))
@@ -738,6 +769,7 @@ def main(argv=None):
 	main_window_disabled=False
 
 	while True:
+		initVals()
 		if not isinstance(inputfilename, str) or len(inputfilename)==0 or gui==True:
 			if main_window_disabled:
 				if weborgui != 'web':
@@ -759,7 +791,7 @@ def main(argv=None):
 			#sys.stderr.flush()
 			if (event=="Exit") or event is None:
 				main_window.Close()
-				exit()
+				sys.exit()
 				break
 			elif event == "Help":
 				#sg.PopupScrolled(__doc__,title='VPrune - Help',non_blocking=True)
@@ -785,7 +817,13 @@ def main(argv=None):
 
 				#help_window = sg.Window('VPrune - Help', layout, keep_on_top=True, disable_minimize=True, web_port=8081)
 				help_window.Finalize()
-				help_window.FindElement('helptext').Update(html.escape(__doc__, quote=True))
+				if weborgui=='web':
+					#help_window.FindElement('helptext').Update(html.escape(__doc__, quote=True))
+					#html.escape was necessary before, now it's not . . . don't understand it
+					#perhaps because text was directly inserted before, now via .Update()
+					help_window.FindElement('helptext').Update(__doc__)
+				else:
+					help_window.FindElement('helptext').Update(__doc__)
 				help_window.Read()
 				help_window.Close()
 				continue
@@ -857,11 +895,13 @@ def main(argv=None):
 
 			if values['1_usemaxturns'] and len(values['maxturns']) > 0 and int(round(float(values['maxturns']))) > 0:
 				maxturns = int(round(float(values['maxturns'])))
+				split=0
 				assert (maxturns >= 0)
 				print('Maximum Turns/Coursepoints in each output file: %d \n' % maxturns)
 				#sys.stderr.flush()
 			elif values['1_usesplit'] and len(values['split']) > 0 and int(round(float(values['split']))) > 0:
 				split = int(round(float(values['split'])))
+				maxturns = 0
 				assert (split >= 0)
 				print('Split TCX into %d separate output files \n' % split)
 				#sys.stderr.flush()
@@ -903,7 +943,8 @@ def main(argv=None):
 
 			if values['2_usemaxpoints'] and len(values['maxpoints']) > 0 and int(round(float(values['maxpoints']))) > 0:
 				maxpoints = int(round(float(values['maxpoints'])))
-				assert (maxpoints >= 0)
+				percent = 0
+				#assert (maxpoints >= 0)
 				print('Maximum Trackpoints in each output file = %d \n' % maxpoints)
 				#sys.stderr.flush()
 			elif values['2_usepercent'] and len(values['percent']) > 0 and int(round(float(values['percent']))) >= 0 and int(round(float(values['percent']))) <= 100:
@@ -941,11 +982,13 @@ def main(argv=None):
 		if not gui:
 			if arguments['--maxturns'] and isInt(arguments['--maxturns']):
 				maxturns = int(arguments['--maxturns'])
+				split = 0
 				assert (maxturns >= 0)
 				sys.stderr.write('Maximum Turns/Coursepoints in each output file: %d \n' % maxturns)
 				#sys.stderr.flush()
 			elif arguments['--split'] and isInt(arguments['--split']):
 				split = int(arguments['--split'])
+				maxturns=0
 				assert (split >= 0)
 				sys.stderr.write('Split TCX into %d separate output files \n' % maxturns)
 				#sys.stderr.flush()
@@ -990,11 +1033,12 @@ def main(argv=None):
 
 			if arguments['--maxpoints'] and isInt(arguments['--maxpoints']):
 				maxpoints = int(arguments['--maxpoints'])
+				percent = 0
 				assert (maxpoints >= 0)
 				sys.stderr.write('Maximum Trackpoints in each output file = %d \n' % maxpoints)
 				#sys.stderr.flush()
 			elif arguments['--percent'] and isInt(arguments['--percent']):
-				percent = int(arguments['--percent'])
+				percent = int(arguments['--percent'])				
 				maxpoints = 0
 				assert (percent >= 0 and percent <= 100)
 				sys.stderr.write('Percent of Trackpoints to retain = %d \n' % percent)
@@ -1012,11 +1056,11 @@ def main(argv=None):
 			if not inputfilename.lower().endswith('.tcx') and not gui:			
 					print ("input file %s has no .tcx extension" % inputfilename)
 					#sys.stderr.flush()
-					exit(-1)
+					sys.exit(-1)
 			elif not os.path.isfile(inputfilename):
 					print ("input file %s does not exist" % inputfilename)
 					#sys.stderr.flush()
-					exit(-1)
+					sys.exit(-1)
 
 
 	
@@ -1097,4 +1141,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
 	sys.exit(main())
-exit()
+sys.exit()
