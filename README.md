@@ -39,6 +39,38 @@ VPrune is specifically designed process .tcx files created with RideWithGPS and 
 
 VPrune INPUTFILE - ie, run with default settings, will clean Notes from entries, split the files, and eliminate Trackpoints as needed to create a series of files should upload/run OK with a Lezyne GPS device.
 
+INSTALLING PYTHON AND VPRUNE.PY UNDER PYTHON
+
+VPrune will run on most any platform that Python can run on. That includes Windows, Linux/Unix, MacOS, and some others (maybe iOS with Pythonista--at least as a command line app).  Installation steps:
+
+1. Install Python 3 (3.7+ preferred) from https://www.python.org/downloads/
+
+2. After a fresh Python install, you need to install a few needed libraries. At the command line or console enter these commands in sequence:
+    pip install docopts
+	pip install lxml
+	pip install pysimplegui
+	pip install pysimpleguiweb
+
+	The first two libraries are needed for all versions.  The second two are needed to run the windowed GUI and web GUI versions.
+
+3. Depending on your operating system, you may be able to double-click vprune.py to run it (windows mode).  Otherwise at the command line or console type:
+	python vprune.py
+
+Depending on your system setup, you may need to use one of these commands instead:
+	python 3 vprune.py
+	py3 vprune.py
+	py vprune.py
+
+4. With those commands, VPrune will run in the windowed version. If you would rather use the command line/console version, just add the command line parameters described below. Example:
+
+	vprune.py mygpsfile.tcx
+	vprune.py --help
+
+Depending on your system, you may need to add 'python' to the start of the commands, like this:
+
+	python vprune.py mygpsfile.tcx
+	python vprune.py --help
+
 RUNNING AS A WEB GUI UNDER ANDROID
 
 Now vprune.py runs as command line OR windowed app (Windows, Mac, Linux, etc) OR as a web GUI (android)
