@@ -1,0 +1,5 @@
+#for repl.it or regular python install (insures compatible packages).  Usage: pip install -r requirements.txt
+PYSimpleGUIWeb==0.28.1
+PYSimpleGUI==4.2.0
+lxml==4.4.1
+docopt

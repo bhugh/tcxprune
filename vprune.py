@@ -40,9 +40,41 @@ VPrune can also, optionally, clean CoursePoint Notes and/or Generic CoursePoints
 
 VPrune is specifically designed process .tcx files created with RideWithGPS and create .tcx files that will work with Lezyne GPS devices, which have problems when .tcx files are too large or have too many turns. It may be useful for .tcx files created by other sources and for other GPS devices as well.
 
-VPrune INPUTFILE - ie, run with default settings, will clean Notes from entries, split the files, and eliminate Trackpoints as needed to create a series of files should upload/run OK with a Lezyne GPS device.
+INSTALLING PYTHON AND VPRUNE.PY UNDER PYTHON
+VPrune will run on most any platform that Python can run on. That includes Windows, Linux/Unix, MacOS, and some others (maybe iOS with Pythonista--at least as a command line app).  Installation steps:
+
+1. Install Python 3 (3.7+ preferred) from https://www.python.org/downloads/
+
+2. After a fresh Python install, you need to install a few needed libraries. At the command line or console enter these commands in sequence:
+    
+	pip install docopt
+	pip install lxml==4.4.1
+	pip install PYSimpleGUI==4.2.0
+	pip install PYSimpleGUIWeb==0.28.1
+
+	The first two libraries are needed for all versions.  The second two are needed to run the windowed GUI and web GUI versions.
+	OR (shorter) just use: pip install -r requirements.txt
+
+3. Depending on your operating system, you may be able to double-click vprune.py to run it (windows mode).  Otherwise at the command line or console type:
+	python vprune.py
+
+Depending on your system setup, you may need to use one of these commands instead:
+	python 3 vprune.py
+	py3 vprune.py
+	py vprune.py
+
+4. With those commands, VPrune will run in the windowed version. If you would rather use the command line/console version, just add the command line parameters described below. Example:
+
+	vprune.py mygpsfile.tcx
+	vprune.py --help
+
+Depending on your system, you may need to add 'python' to the start of the commands, like this:
+
+	python vprune.py mygpsfile.tcx
+	python vprune.py --help
 
 COMMAND LINE USAGE EXAMPLES:
+  VPrune INPUTFILE - ie, run with default settings, will clean Notes from entries, split the files, and eliminate Trackpoints as needed to create a series of files that should upload/run OK with a Lezyne GPS device
   vprune routefile.tcx
   vprune --maxturns 100 --maxpoints 1000 --cleancourse --nocleannotes routefile.tcx
   vprune --maxturns 60 --maxpoints 400 --prefix new_ routefile.tcx 
@@ -76,7 +108,6 @@ Options:
 #from __future__ import print_function
 
 import re, sys, os,random, datetime, math, copy, html, time, platform #, pytz
-from docopt import docopt
 from io import StringIO
 
 try:
@@ -84,7 +115,7 @@ try:
   print("tkinter available, can run windowed GUI")
   weborgui='gui'
 except ImportError:
-	print("tkinter not available, can run web GUI")
+	print("tkinter not available, can run web GUI but not windowed GUI")
 	weborgui='web'
 
 #will run as gui on Windows or other platforms and web on android
@@ -99,22 +130,86 @@ except ImportError:
 #print(platform, weborgui)
 
 #print("%x" % sys.maxsize, sys.maxsize > 2**32)
-'''
+
 if (sys.maxsize > 2**32):
 	print ("64 bit Python")
 else:
 	print ("32 bit Python")
-'''
 
-if weborgui=='web':
-	import PySimpleGUIWeb as sg
-else:
-	import PySimpleGUI as sg
+
+try:
+  from docopt import docopt
+  #print("running with docopt")
+except ImportError:
+	print()
+	print("************ERROR************************")
+	print("docopt module not imported--probably because the docopt module is not installed. Without docopt, VPrune cannot run at all.")
+	print("If you want to fix the problem: At the console, run command 'pip install docopt'")
+	print ("and then try again")
+	print("************ERROR************************")
+	print()
+	sys.exit()
+
+pysimpleinstalled = False
+pysimplePlainInstalled = False
+pysimpleWebInstalled = False
+
+try:
+	if weborgui=='web':
+		import PySimpleGUIWeb as sg
+		pysimpleinstalled = True
+		pysimpleWebInstalled = True
+	else:
+		try:
+			import PySimpleGUI as sg
+			pysimpleinstalled = True
+			pysimplePlainInstalled = False
+		except ImportError:
+			import PySimpleGUIWeb as sg
+			weborgui = 'web'
+			pysimpleinstalled = True
+			pysimpleWebInstalled = True
+			print()
+			print("*****NOTICE******************************")
+			print("PySimpleGUI module import failed--probably because the required module is not installed")
+			print ("Running in web GUI mode instead. Open your browser to localhost:8081")
+			print("If you want to run in regular windowed mode, run command:")
+			print("   pip install pysimplegui")			
+			print ("and then try again")
+			print()
+			print ("Type 'python vprune.py --help' for more help")
+			print("*****NOTICE*****************************")
+			print()
+
+except ImportError:
+	print()
+	print("*****WARNING******************************")
+	print("Both PySimpleGUI and PySimpleGUIWeb module import failed--probably because the required module(s) is not installed")
+	print ("Cannot run in windowed or web GUI mode.  Will run only in command line/console mode.")
+	print("If you want to run in windowed mode, run commands:")
+	print("   pip install pysimplegui")
+	print("   pip install pysimpleguiweb")
+	print ("and then try again")
+	print()
+	print ("Type 'python vprune.py --help' for command line options")
+	print("*****WARNING*****************************")
+	print()
+	pysimpleinstalled = False
 
 try:
   from lxml import etree
-  print("running with lxml.etree")
+  #print("running with lxml.etree")
 except ImportError:
+	print()
+	print("************ERROR************************")
+	print("lxml module not imported--probably because the lxml module is not installed. Without lxml, VPrune cannot run at all.")
+	print("If you want to fix the problem: At the console, run command 'pip install lxml'")
+	print ("and then try again")
+	print("************ERROR************************")
+	print()
+	sys.exit()
+	
+	'''
 	try:
 		# Python 2.5
 		import xml.etree.cElementTree as etree
@@ -136,6 +231,7 @@ except ImportError:
 					print("running with ElementTree")
 				except ImportError:
 					print("Failed to import ElementTree from any known place")
+	'''
 
 
 ns1 = 'http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2'
@@ -710,7 +806,7 @@ def process_file_segments (tree, root, inputfilename, maxturns, split, maxpoints
 				
 
 def main(argv=None):
-	global prefix, progress_window, progress_bar, progress, gui, mystdout, weborgui
+	global prefix, progress_window, progress_bar, progress, gui, mystdout, weborgui, pysimpleinstalled
 
 	arguments = docopt(__doc__)
 	inputfilename = arguments["INPUTFILE"]
@@ -728,67 +824,70 @@ def main(argv=None):
 
 	window_bcolor='lightgray'
 	multiline_bcolor='white'
-	sg.SetOptions(
-		background_color=window_bcolor, text_element_background_color=window_bcolor, 
-		element_background_color=window_bcolor, scrollbar_color=None,		
-		input_elements_background_color=multiline_bcolor
-		)
+	if pysimpleinstalled:
+		sg.SetOptions(
+			background_color=window_bcolor, text_element_background_color=window_bcolor, 
+			element_background_color=window_bcolor, scrollbar_color=None,		
+			input_elements_background_color=multiline_bcolor
+			)
 
-	turn_split = [sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', enable_events=True, size=[5,1], default_text="80"), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', enable_events=True, size=[4,1]), sg.Text('new files                  ') ]
-	track_percent = [sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500',key='maxpoints', enable_events=True, size=[5,1]),  sg.Text('             OR                        Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1], enable_events=True), sg.Text('(0-100)') ]
-	if weborgui == 'web':
-		#Can't have enable_events=True for InputText elements in PySimpleGUIWeb because of a bug, for now.  2019/08
-		turn_split = [sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', size=[5,1], default_text="80"), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', size=[4,1]), sg.Text('new files                  ') ]
-		track_percent = [sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500', key='maxpoints', size=[5,1]),  sg.Text('             OR                        Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1]), sg.Text('(0-100)') ]
+		turn_split = [sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', enable_events=True, size=[5,1], default_text="80"), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', enable_events=True, size=[4,1]), sg.Text('new files                  ') ]
+		track_percent = [sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500',key='maxpoints', enable_events=True, size=[5,1]),  sg.Text('             OR                        Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1], enable_events=True), sg.Text('(0-100)') ]
+		if weborgui == 'web':
+			#Can't have enable_events=True for InputText elements in PySimpleGUIWeb because of a bug, for now.  2019/08
+			turn_split = [sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', size=[5,1], default_text="80"), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', size=[4,1]), sg.Text('new files                  ') ]
+			track_percent = [sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500', key='maxpoints', size=[5,1]),  sg.Text('             OR                        Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1]), sg.Text('(0-100)') ]
 	
 
-	layout = [[sg.Text('                                    VPrune will simplify your .tcx files by trimming points and splitting the file into several smaller files')],
-				[sg.Text('                         With default options it will produce files suitable for use with Lezyne GPS units and perhaps other GPS units as well')],
-				[sg.Text('')],				
+		layout = [[sg.Text('                                    VPrune will simplify your .tcx files by trimming points and splitting the file into several smaller files')],
+					[sg.Text('                         With default options it will produce files suitable for use with Lezyne GPS units and perhaps other GPS units as well')],
+					[sg.Text('')],				
 
-				[sg.Frame('',[
-					[sg.Text('                                               SPLIT THE FILE',font=('default',19,'italic'), justification='center')],
-					[sg.Text('                       '),sg.Checkbox('Use Max Turns                                                                                     ', default=True,enable_events=True,key='1_usemaxturns'), sg.Checkbox('Use File Split #                      ', enable_events=True,key='1_usesplit')],
-					turn_split,
+					[sg.Frame('',[
+						[sg.Text('                                               SPLIT THE FILE',font=('default',19,'italic'), justification='center')],
+						[sg.Text('                       '),sg.Checkbox('Use Max Turns                                                                                     ', default=True,enable_events=True,key='1_usemaxturns'), sg.Checkbox('Use File Split #                      ', enable_events=True,key='1_usesplit')],
+						turn_split,
+						[sg.Text('')],
+					], background_color=window_bcolor)],
+
+					[sg.Frame('',[
+						[sg.Text('                                        REDUCE TRACKPOINTS',font=('default',18,'italic'),justification='center')],
+						[sg.Text('                  '),sg.Checkbox('Use Max Trackpoints                                                                          ', enable_events=True, default=True,key='2_usemaxpoints'), sg.Checkbox('Use Percentage of Trackpoints               ', enable_events=True, key='2_usepercent')],
+						track_percent,
+						[sg.Text('')],
+						[sg.Text('File prefix for processed files'), sg.InputText('vp_',key='prefix', size=[15,1]), sg.Text('If more than one file, names will be, ie, vp_1_yourfilename.tcx, vp_2_yourfilename.tcx, ...') ],
+						[sg.Text('')],
+					], background_color=window_bcolor)],
+
+					[sg.Frame('',[
+						[sg.Text('                                      CLEAN THE OUTPUT FILES',font=('default',18,'italic'),justification='center')],
+						[sg.Text('                                                                    '),sg.Checkbox('Strip all "Generic" CoursePoints', key='cleancourse')],				  
+						[sg.Text('                                           '),sg.Checkbox('Remove all Notes     ', default=True,enable_events=True, key='3_cleannotes'), sg.Checkbox('Trim/clean Notes', enable_events=True, key='3_trimnotes'), sg.Checkbox('Leave Notes alone                                                   ', enable_events=True, key='3_nocleannotes')],
+					#[sg.Checkbox('Show progress Debug Window', key='progress_debug')],
+						[sg.Text('')],
+					], background_color=window_bcolor)],
+
+					[sg.Frame('',[
+						[sg.Text('                                       CHOOSE THE DOCUMENT',font=('default',18,'italic'))],
+					#[sg.In(key='inputfile', size=[50,1], focus=True)],
+						[sg.Text('                                      '),sg.In('.tcx',key='inputfile', size=[70,1], focus=True), sg.FileBrowse(), sg.Text('                    ')],
+						#Can try sg.FileBrowse OR sg.FilesBrowse
+					], background_color=window_bcolor)],
 					[sg.Text('')],
-				], background_color=window_bcolor)],
-
-				[sg.Frame('',[
-					[sg.Text('                                        REDUCE TRACKPOINTS',font=('default',18,'italic'),justification='center')],
-					[sg.Text('                  '),sg.Checkbox('Use Max Trackpoints                                                                          ', enable_events=True, default=True,key='2_usemaxpoints'), sg.Checkbox('Use Percentage of Trackpoints               ', enable_events=True, key='2_usepercent')],
-					track_percent,
+					[sg.Text('                                                                                  '),sg.Open('Process File'),sg.Text(' '), sg.Exit(), sg.Text('                                                                   '), sg.Help("Help")],
 					[sg.Text('')],
-					[sg.Text('File prefix for processed files'), sg.InputText('vp_',key='prefix', size=[15,1]), sg.Text('If more than one file, names will be, ie, vp_1_yourfilename.tcx, vp_2_yourfilename.tcx, ...') ],
-					[sg.Text('')],
-				], background_color=window_bcolor)],
+					[sg.Multiline('', visible=False, key='webnotes', size=(700,200))],
 
-				[sg.Frame('',[
-					[sg.Text('                                      CLEAN THE OUTPUT FILES',font=('default',18,'italic'),justification='center')],
-					[sg.Text('                                                                    '),sg.Checkbox('Strip all "Generic" CoursePoints', key='cleancourse')],				  
-					[sg.Text('                                           '),sg.Checkbox('Remove all Notes     ', default=True,enable_events=True, key='3_cleannotes'), sg.Checkbox('Trim/clean Notes', enable_events=True, key='3_trimnotes'), sg.Checkbox('Leave Notes alone                                                   ', enable_events=True, key='3_nocleannotes')],
-				#[sg.Checkbox('Show progress Debug Window', key='progress_debug')],
-					[sg.Text('')],
-				], background_color=window_bcolor)],
+					]
 
-				[sg.Frame('',[
-					[sg.Text('                                       CHOOSE THE DOCUMENT',font=('default',18,'italic'))],
-				#[sg.In(key='inputfile', size=[50,1], focus=True)],
-					[sg.Text('                                      '),sg.In('.tcx',key='inputfile', size=[70,1], focus=True), sg.FileBrowse(), sg.Text('                    ')],
-					#Can try sg.FileBrowse OR sg.FilesBrowse
-				], background_color=window_bcolor)],
-				[sg.Text('')],
-				[sg.Text('                                                                                  '),sg.Open('Process File'),sg.Text(' '), sg.Exit(), sg.Text('                                                                   '), sg.Help("Help")],
-				[sg.Text('')],
-				[sg.Multiline('', visible=False, key='webnotes', size=(700,200))],
-
-				]
+	main_window = []
+	if pysimpleinstalled:
+		if weborgui=='web':
+			main_window = sg.Window('VPrune', layout, text_justification='center', use_default_focus=False, background_color=window_bcolor, web_port=8081)
+		else:
+			main_window = sg.Window('VPrune', layout, text_justification='center', use_default_focus=False, background_color=window_bcolor)
 	
-	if weborgui=='web':
-		main_window = sg.Window('VPrune', layout, text_justification='center', use_default_focus=False, background_color=window_bcolor, web_port=8081)
-	else:
-		main_window = sg.Window('VPrune', layout, text_justification='center', use_default_focus=False, background_color=window_bcolor)
-	
-	if not isinstance(inputfilename, str) or len(inputfilename)==0:
+	if (not isinstance(inputfilename, str) or len(inputfilename)==0) and pysimpleinstalled == True:
 		gui = True
 	
 
@@ -819,7 +918,7 @@ def main(argv=None):
 
 	while True:
 		initVals()
-		if not isinstance(inputfilename, str) or len(inputfilename)==0 or gui==True:
+		if ((not isinstance(inputfilename, str) or len(inputfilename)==0) and pysimpleinstalled) or gui==True:
 			if main_window_disabled:
 				if weborgui != 'web':
 					main_window.Enable()
@@ -855,7 +954,8 @@ def main(argv=None):
 						 [sg.Multiline('', size=(sx,sy), key='helptext', background_color=multiline_bcolor)],
 						 [sg.Submit('Close')]
 						 ]
-								
+				
+				help_window=[]								
 				if weborgui=='web':
 					help_window = sg.Window('VPrune - Help', layout, keep_on_top=True, disable_minimize=True, background_color = window_bcolor, web_port=8081)
 				else:
@@ -919,6 +1019,9 @@ def main(argv=None):
 						 [sg.Submit('Confirm'), sg.Cancel()]]
 
 				#confirm_window = sg.Window('VPrune - Confirm file name and options', layout, keep_on_top=True, disable_minimize=True, web_port=8081)
+				
+				confirm_window=[]
+				
 				if weborgui=='web':
 					confirm_window = sg.Window('VPrune - Confirm file name and options', layout, keep_on_top=True, disable_minimize=True, background_color = window_bcolor, web_port=8081)
 				else:
@@ -1026,6 +1129,14 @@ def main(argv=None):
 
 
 		if not gui:
+
+			#The case of where the gui won't run (pysimplegui not installed, etc) but also we have no filename entered on the command line
+			if (not isinstance(inputfilename, str) or len(inputfilename)==0):
+				inputfilename = ''
+			print()
+			print ('*******VPRUNE COMMAND LINE OPTIONS SELECTED**********')
+
+
 			if arguments['--maxturns'] and isInt(arguments['--maxturns']):
 				maxturns = int(arguments['--maxturns'])
 				split = 0
@@ -1100,15 +1211,23 @@ def main(argv=None):
 			#sys.stderr.flush()
 
 			if not inputfilename.lower().endswith('.tcx') and not gui:			
-					print ("input file %s has no .tcx extension" % inputfilename)
-					#sys.stderr.flush()
-					sys.exit(-1)
+				print()
+				print ('*******ERROR**********')
+				print ("input file '%s' has no .tcx extension" % inputfilename)
+				print ("Use 'vprune.py --help' for command line options")
+				print ('*******ERROR**********')
+
+				#sys.stderr.flush()
+				sys.exit(-1)
 			elif not os.path.isfile(inputfilename):
-					print ("input file %s does not exist" % inputfilename)
-					#sys.stderr.flush()
-					sys.exit(-1)
+				print()
+				print ('*******ERROR**********')
+				print ("input file '%s' does not exist" % inputfilename)
+				print ("Use 'vprune.py --help' for command line options")
+				print ('*******ERROR**********')
 
-
+				#sys.stderr.flush()
+				sys.exit(-1)
 	
 			sys.stderr.write(' \n')
 			#sys.stderr.flush()
@@ -1139,6 +1258,7 @@ def main(argv=None):
 						 ]
 			
 				#progress_window = sg.Window('VPrune - Processing . . . ', layout, keep_on_top=True, disable_minimize=True,web_port=8081)
+				progress_window = []
 				if weborgui=='web':
 					progress_window = sg.Window('VPrune - Processing . . . ', layout, keep_on_top=True, disable_minimize=True, background_color = window_bcolor, web_port=8081)
 				else:

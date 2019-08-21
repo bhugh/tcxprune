@@ -7,6 +7,8 @@ VPrune prunes and split .tcx files to make them more compatible with Lezyne and 
 To run on REPL.IT:
 
  0. FORK this repl (button at the top of the repl.it screen). Unfortunately, only one person at a time can use a given repl.it project. But if you fork it, making your own copy, you can save that URL and come back to use the forked version as often as you wish.
+	
+    =====> After forking, you will have to re-load the "fork" web page (otherwise the web browser pane is still stuck on the original version.)
 
  1. On your forked copy of the repl, Click on "input.tcx" and copy/paste the contents of your .tcx file in place of what is there.  (Alternatively: Click "add file" and upload your .tcx, or drag & drop it onto the "Files" pane.)
 
@@ -20,7 +22,7 @@ To run on REPL.IT:
 
  6. Click "Finish", the program will exit.
  
- 7. As soon as t he program exits (but not before!) and your files should/will appear on the left of REPL.IT in folder "TCXResults" 
+ 7. As soon as the program exits (but not before!) your files should/will appear on the left of REPL.IT in folder "TCXResults" 
 
  8. You can copy & paste the resulting files into a text edit OR  download all files as a zip in the files pane (look for the 'three dots' - you may have to widen the pane - then "download as zip")
 
@@ -64,7 +66,38 @@ VPrune can also, optionally, clean CoursePoint Notes and/or Generic CoursePoints
 
 VPrune is specifically designed process .tcx files created with RideWithGPS and create .tcx files that will work with Lezyne GPS devices, which have problems when .tcx files are too large or have too many turns. It may be useful for .tcx files created by other sources and for other GPS devices as well.
 
-VPrune INPUTFILE - ie, run with default settings, will clean Notes from entries, split the files, and eliminate Trackpoints as needed to create a series of files should upload/run OK with a Lezyne GPS device.
+VPrune INPUTFILE - ie, run with default settings, will clean Notes from entries, split the files, and eliminate Trackpoints as needed to create a series of files that should upload/run OK with a Lezyne GPS device.
+
+INSTALLING PYTHON AND VPRUNE.PY UNDER PYTHON
+VPrune will run on most any platform that Python can run on. That includes Windows, Linux/Unix, MacOS, and some others (maybe iOS with Pythonista--at least as a command line app).  Installation steps:
+
+1. Install Python 3 (3.7+ preferred) from https://www.python.org/downloads/
+
+2. After a fresh Python install, you need to install a few needed libraries. At the command line or console enter these commands in sequence:
+    pip install docopt
+	pip install lxml
+	pip install pysimplegui
+	pip install pysimpleguiweb
+
+	The first two libraries are needed for all versions.  The second two are needed to run the windowed GUI and web GUI versions.
+
+3. Depending on your operating system, you may be able to double-click vprune.py to run it (windows mode).  Otherwise at the command line or console type:
+	python vprune.py
+
+Depending on your system setup, you may need to use one of these commands instead:
+	python 3 vprune.py
+	py3 vprune.py
+	py vprune.py
+
+4. With those commands, VPrune will run in the windowed version. If you would rather use the command line/console version, just add the command line parameters described below. Example:
+
+	vprune.py mygpsfile.tcx
+	vprune.py --help
+
+Depending on your system, you may need to add 'python' to the start of the commands, like this:
+
+	python vprune.py mygpsfile.tcx
+	python vprune.py --help
 
 COMMAND LINE USAGE EXAMPLES:
   vprune routefile.tcx
@@ -105,10 +138,10 @@ from io import StringIO
 
 try:
   import tkinter
-  print("tkinter available, can run windowed GUI")
+  #print("tkinter available, can run windowed GUI")
   weborgui='gui'
 except ImportError:
-	print("tkinter not available, can run web GUI but not windowed GUI")
+	#print("tkinter not available, can run web GUI but not windowed GUI")
 	weborgui='web'
 
 #will run as gui on Windows or other platforms and web on android
@@ -124,6 +157,19 @@ weborgui = 'web' #use to force web or gui for testing purposes or if desired on 
 
 #print("%x" % sys.maxsize, sys.maxsize > 2**32)
 
+#repl.it
+print()
+print ("*******************************************")
+print()
+print ("Remember to FORK this repl before running.")
+print()
+print ("Then *reload* the browser page with the fork, then run the fork.")
+print()
+print("Detailed instructions @ the top of main.py")
+print()
+print ("*******************************************")
+print()
+
 if (sys.maxsize > 2**32):
 	print ("64 bit Python")
 else:
@@ -137,7 +183,7 @@ else:
 
 try:
   from lxml import etree
-  print("running with lxml.etree")
+  #print("running with lxml.etree")
 except ImportError:
   print("couldn't import lxml, exiting")
   exit()
@@ -147,7 +193,12 @@ ns2 = 'http://www.garmin.com/xmlschemas/ActivityExtension/v2'
 prefix = 'vp_'
 savedir = 'TCXResults'
 gui = False
+
+#This is an attempt to get various vprunes running in the same machine to use different web ports, so that different people
+#could connect to each one
+#However, it doesn't work on repl.it as repl.it intercepts the port and always sends to port 80 regardless of what you do.
 webport = random.randint(49152, 65535) #replit
+#webport = 8081	 #replit
 print ("Running on HTTP port", webport) #replit
 VPweb_multiple_instance = False
 
@@ -866,6 +917,7 @@ def main(argv=None):
 
 				]
 	
+	main_window = []
 	if weborgui=='web':
 		main_window = sg.Window('VPrune', layout, text_justification='center', use_default_focus=False, background_color=window_bcolor, web_port=webport, web_multiple_instance = VPweb_multiple_instance)
 	else:
@@ -920,6 +972,7 @@ def main(argv=None):
 			#sys.stderr.flush()
 			if (event=="Exit") or event is None:
 				#main_window.Close()
+				os._exit(1) #repl.it
 				sys.exit()
 				break
 			elif event == "Help":
@@ -938,7 +991,7 @@ def main(argv=None):
 						 [sg.Multiline('', size=(sx,sy), key='helptext', background_color=multiline_bcolor)],
 						 [sg.Submit('Close')]
 						 ]
-								
+				help_window=[]								
 				if weborgui=='web':
 					help_window = sg.Window('VPrune - Help', layout, keep_on_top=True, disable_minimize=True, background_color = window_bcolor, web_port=webport, web_multiple_instance=VPweb_multiple_instance)
 				else:
@@ -999,15 +1052,22 @@ def main(argv=None):
 						   
 						  #[sg.Output(size=(80, 18))],
 						 [sg.Multiline("",key='confirmtext', size=(sx,sy), background_color=multiline_bcolor)],
-						 [sg.Submit('Confirm'), sg.Cancel()]]
+						 [sg.Submit('Click to continue...', key='submit'), sg.Cancel()]]
 
 				#confirm_window = sg.Window('VPrune - Confirm file name and options', layout, keep_on_top=True, disable_minimize=True, web_port=webport)
+				confirm_window = []
 				if weborgui=='web':
 					confirm_window = sg.Window('VPrune - Confirm file name and options', layout, keep_on_top=True, disable_minimize=True, background_color = window_bcolor, web_port=webport, web_multiple_instance = VPweb_multiple_instance)
+					#print(confirm_window)
 				else:
 					confirm_window = sg.Window('VPrune - Confirm file name and options', layout, keep_on_top=True, disable_minimize=True)
-
+				#print(confirm_window)
+				#time.sleep(0.1)
+				#in repl.it, the following line keeps throwing errors and I can't figure out why
+				#confirm_window.Read()
 				confirm_window.Finalize()
+				confirm_window.FindElement('submit').Update('Confirm')
+				#confirm_window.Finalize()
 				
 				
 
@@ -1226,6 +1286,7 @@ def main(argv=None):
 						 ]
 			
 				#progress_window = sg.Window('VPrune - Processing . . . ', layout, keep_on_top=True, disable_minimize=True,web_port=webport)
+				progress_window=[]
 				if weborgui=='web':
 					progress_window = sg.Window('VPrune - Processing . . . ', layout, keep_on_top=True, disable_minimize=True, background_color = window_bcolor, web_port=webport, web_multiple_instance = VPweb_multiple_instance)
 				else:
@@ -1250,9 +1311,16 @@ def main(argv=None):
 				#print ("\n\nProcessed file(s) will start with", prefix," and are in the same directory as your original .tcx file \n" + os.path.dirname(inputfilename))
 				print ("\n\nProcessed file(s) will start with", prefix,". They will be in the TCXResults directory of REPL.IT filelist window to the left as soon as you exit this screen\n") #repl.it
 				sys.stdout = old_stdout
+
+				print ('\n\n\n*****************************\n')							
+				print("Processed files will appear in repl.it as soon as you click the 'Finished' button")
+				print()
+				print("If you don't see a 'Finished' button you may need to reload the browser pane to update it.")
+				print()
+				print('*****************************\n\n\n\n')	
 						
 				result_string = mystdout.getvalue()			
-				progress_window.FindElement('progresstext').Update(result_string)
+				progress_window.FindElement('progresstext').Update(result_string)	
 
 				progress_window.FindElement('submit').Update('Finished - Click to close & view documents',disabled=False)
 				#progress_window.Refresh()
