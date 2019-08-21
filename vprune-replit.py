@@ -2,7 +2,7 @@
 
 """VPRUNE.EXE/VPRUNE.PY HELP FILE
 
-VPrune prunes and split .tcx files to make them more compatible with Lezyne and other GPS devices that are unable to handle large and complex files.
+VPrune prunes and splits .tcx files to make them more compatible with Lezyne and other GPS devices that are unable to handle large and complex files.
 
 To run on REPL.IT:
 
