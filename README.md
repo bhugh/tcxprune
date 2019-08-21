@@ -46,12 +46,15 @@ VPrune will run on most any platform that Python can run on. That includes Windo
 1. Install Python 3 (3.7+ preferred) from https://www.python.org/downloads/
 
 2. After a fresh Python install, you need to install a few needed libraries. At the command line or console enter these commands in sequence:
-    pip install docopts
-	pip install lxml
-	pip install pysimplegui
-	pip install pysimpleguiweb
+    
+	pip install docopt
+	pip install lxml==4.4.1
+	pip install PYSimpleGUI==4.2.0
+	pip install PYSimpleGUIWeb==0.28.1
 
 	The first two libraries are needed for all versions.  The second two are needed to run the windowed GUI and web GUI versions.
+	
+	OR (shorter) just use: pip install -r requirements.txt
 
 3. Depending on your operating system, you may be able to double-click vprune.py to run it (windows mode).  Otherwise at the command line or console type:
 	python vprune.py
