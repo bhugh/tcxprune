@@ -32,7 +32,7 @@ VPrune can also, optionally, split the file into several segments.  This allows 
 
 Splitting the route also splits CoursePoints (with turn-by-turn directions) appropriately among the files, meaning that each of these files has far fewer CoursePoints than the original. Many GPS devices have trouble processing .tcx files with too many CoursePoints, so splitting the file into several smaller files is the best way to preserve the turn-by-turn instructions while still allowing these files to work correctly with these devices.
 
-When the file is split into several files, each file overlaps the other at exactly one CoursePoint/turn-by-turn direction point. So when you reach the end of one file, you can simply load the next file to continue from that same point.
+When the file is split into several files, each file overlaps the other by four turns (four CoursePoints/turn directions) by default. So when you you are getting close to the end of one file you can choose a convenient point with 0-4 turns left to upload you next file.  The number of turns to overlap is settable via the window or command line argument.
 
 By default, output files are named vp_INPUTFILE (if one outputfile) or vp_1_INPUTFILE, vp_2_INPUTFILE, etc, if more than one. You can change the file prefix as desired.
 
@@ -92,6 +92,8 @@ Options:
 
   --maxturns <max # of turns/CoursePoints before file is split>  [Default: --maxturns 80]
   --split <# of files to split into>                             [Specify --maxturns OR --split, not both]
+
+  --overlap_num <# of turns to overlap when splitting files>
 
   --maxpoints <# of Trackpoints in each output file>      [Default: --maxpoints 500]
   --percent <pct 0-100 of Trackpoints to retain>          [Specify --maxpoints OR --percent, not both]
@@ -324,9 +326,53 @@ def checkbox_to_radio(window, event, values, delimiter='_'):
 			except:
 				print (value, "couldn't find or update element")
 
+#goes through the dictionary and for any matching item, adds the first characters in the string like a prefix
+#keyname can be like "folders" "courses/course"
+#
+#TCX names should be only 15 chars long so then it trims to 15 chars
+def replace_first_chars_entry(parent, keyname, prefix, nsmap):
+	#sys.stderr.write(keyname + prefix + "\n")
+	#for element in parent.iter(keyname):
+	#	sys.stderr.write("%s - %s" % (element.tag, element.text) + "\n")
+	#sys.stderr.flush
 
+	entries = parent.xpath(keyname, namespaces=nsmap)
+	#sys.stderr.write(str(len(entries)) + "\n")
+
+	for entry in entries:
+		sys.stderr.write("%s - %s" % (entry.tag, entry.text) + "\n")
+		if (entry.text is not None):
+			entry.text = (prefix + entry.text)[:15] # trim to 15 chars
+		else:
+			entry.text = prefix[:15] # trim to 15 chars
+		sys.stderr.write("%s - %s" % (entry.tag, entry.text) + "\n")
+	sys.stderr.flush
+	return
+	#entries = parent.findall('.//{%s}'%ns1 + keyname) # .// makes it find the tag anywhere, not just as the first-level child tag
+	#sys.stderr.write(str(etree.tostring(parent, pretty_print=True)))
+	sys.stderr.write(keyname +"\n")
+	entries = parent.xpath(keyname)
+	sys.stderr.write(str(len(entries)) + "\n")
+	#entries = parent.findall('./Lap')
+    # update if entry already exists.
+	#sys.stderr.write(entries)
+	#if index <= len(entries):
+	#	entry = entries[index - 1]
+		#for child in entry.iter():
+			#print (type(child))
+
+			#print(child.tag, child.text, child.tail)
+	for entry in entries:
+		sys.stderr.write(str(etree.tostring(entry, pretty_print=True)))
+		#print(entry.text)
+		#print(entry.tag)		
+		sys.stderr.write(entry.text +"\n")
+		if (entry.text is not None):
+				entry.text = (prefix + entry.text)[:15] # trim to 15 chars
+	sys.stderr.flush
 
 # from https://stackoverflow.com/questions/26523929/add-update-elements-at-position-using-lxml-python
+#goes through all the entries in a given dictionary, and if that entry exists in the table at the given parent, then update the corresponding entry to match the dictionary.  Preset to work only with <lap> elements
 def upsert_entry(parent, index, insertdict, begindict, enddict):
 	entry_template = """
       <Lap>
@@ -469,6 +515,36 @@ def update_lap(course, start_returndict, end_returndict):
 	upsert_entry(course,1,insertdict,start_returndict, end_returndict)
 	return
 
+def rename_courses_with_prefix(root, prefix):
+
+	nsmap = {
+    'ns1': ns1,
+    'ns2': ns2,
+	}
+
+	
+	#These all work:  
+	#replace_first_chars_entry(root, ".//ns1:Id", prefix, nsmap)
+	#replace_first_chars_entry(root, ".//ns1:CourseNameRef/ns1:Id", prefix, nsmap)
+	#replace_first_chars_entry(root, ".//ns1:CourseFolder/ns1:CourseNameRef/ns1:Id", prefix, nsmap)
+	#replace_first_chars_entry(root, ".//ns1:CourseFolder[@*]/ns1:CourseNameRef/ns1:Id", prefix, nsmap)
+	#replace_first_chars_entry(root, ".//ns1:Folders/ns1:Courses/ns1:CourseFolder[@Name='Courses']/ns1:CourseNameRef/ns1:Id", prefix, nsmap)
+	#replace_first_chars_entry(root, ".//ns1:Folders/ns1:Courses/ns1:Course/ns1:Name", prefix, nsmap)
+	#replace_first_chars_entry(root, ".//ns1:Folders", prefix, nsmap)
+	#xpath=#$(*@#$)(*&@#$)(*&#@$)(*&W#$&@&&
+	
+	replace_first_chars_entry(root, ".//ns1:CourseFolder[@Name='Courses']/ns1:CourseNameRef/ns1:Id", prefix, nsmap)
+	replace_first_chars_entry(root, ".//ns1:Courses/ns1:Course/ns1:Name", prefix, nsmap)
+
+	'''
+	    <Courses>
+      <CourseFolder Name="Courses">
+        <CourseNameRef>
+          <Id>SFE-03-01P-Sant</Id>
+'''
+	#adder = {'Name':prefix}
+	#replace_first_chars_entry(root, "/TrainingCenterDatabase/Courses/Course/Name", prefix)
+
 def cleanup_course(course, cleancourse, cleannotes, trimnotes):
 	#print ("Course cleanup . . . ")
 	bad_chars = ["\n", "\p", "--"]
@@ -548,7 +624,7 @@ def process_track(course, track, percent, times, start_time, end_time):
 	update_lap(course, start_returndict, end_returndict)
 
 
-def process_file(tree, root, tcxfile, num_parts, percent, first, last, cleancourse, cleannotes, trimnotes, prnt):
+def process_file(tree, root, tcxfile, num_parts, percent, first, last, cleancourse, cleannotes, trimnotes, prnt, prefix_number):
 	"""
 	Process the whole TCX file.
 	"""
@@ -605,6 +681,10 @@ def process_file(tree, root, tcxfile, num_parts, percent, first, last, cleancour
 			if cleancourse or cleannotes or trimnotes:
 				cleanup_course(element, cleancourse, cleannotes, trimnotes)
 
+
+
+
+	rename_courses_with_prefix(tree,prefix+prefix_number)
 
 	#new_name = prefix + tcxfile
 	new_name = os.path.join (os.path.dirname(tcxfile), prefix + os.path.basename(tcxfile))
@@ -772,7 +852,7 @@ def tree_prune(tree, root, first, last):
 	print ("Result written to " + new_name)
 	print ("Trimmed to: %s courses, %s tracks, %s trackpoints, %s coursepoints"%(num_courses, num_tracks, num_trackpoints, num_coursepoints))
 """
-def process_file_segments (tree, root, inputfilename, maxturns, split, maxpoints, percent, cleancourse, cleannotes, trimnotes):
+def process_file_segments (tree, root, inputfilename, maxturns, split, maxpoints, percent, cleancourse, cleannotes, trimnotes, overlap_num = 4):
 	global gui, progress_window, progress_bar, progress, mystdout
 	#num_parts = math.ceil(orig_total_coursepoints/maxturns)
 	ret = count_file(root, percent, maxpoints, 1, maxturns, split, True, True)
@@ -780,19 +860,27 @@ def process_file_segments (tree, root, inputfilename, maxturns, split, maxpoints
 	num_parts = math.ceil(orig_total_coursepoints/maxturns)
 	turns_per_part = math.floor(orig_total_coursepoints/num_parts)
 	total_coursepoints = orig_total_coursepoints
+	
+	overlap_num = round(overlap_num)
+	if overlap_num < 1:
+		overlap_num = 1
+	if overlap_num > total_coursepoints:
+		overlap_num = total_coursepoints
+
 	for i in range(num_parts):
 		start_turn = i * turns_per_part
-		end_turn = (i+1) * turns_per_part
+		end_turn = (i+1) * turns_per_part + overlap_num  #add on three extra turns to the end of the file, so that files overlap by about 4 turns (+0 already overlaps by one turn)  TODO: This could be settable via a field
 		prnt=False
-		if (i+1==num_parts):
+		if (i+1==num_parts or end_turn > total_coursepoints):
 			end_turn = total_coursepoints
 			prnt=True
 		newtree = copy.deepcopy(tree)
 		newroot = newtree.getroot()
 		ret = count_file(newroot, percent, maxpoints, num_parts, maxturns, False)	
 		segmentpercent = ret ['percent']
+		prefix_number = "%i_"%(i+1)
 		segment_filename = os.path.join(os.path.dirname(inputfilename), "%i_%s"%(i+1,os.path.basename(inputfilename)))
-		process_file(newtree, newroot, segment_filename, num_parts, segmentpercent, start_turn, end_turn, cleancourse, cleannotes, trimnotes, prnt)
+		process_file(newtree, newroot, segment_filename, num_parts, segmentpercent, start_turn, end_turn, cleancourse, cleannotes, trimnotes, prnt, prefix_number)
 		if gui:
 			result_string = mystdout.getvalue()			
 			progress_window.FindElement('progresstext').Update(result_string)
@@ -816,6 +904,7 @@ def main(argv=None):
 	maxpoints = 500
 	maxturns= 80
 	split=4
+	overlap_num = 4
 	cleancourse=False
 	cleannotes=False
 	trimnotes=False
@@ -831,12 +920,12 @@ def main(argv=None):
 			input_elements_background_color=multiline_bcolor
 			)
 
-		turn_split = [sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', enable_events=True, size=[5,1], default_text="80"), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', enable_events=True, size=[4,1]), sg.Text('new files                  ') ]
-		track_percent = [sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500',key='maxpoints', enable_events=True, size=[5,1]),  sg.Text('             OR                        Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1], enable_events=True), sg.Text('(0-100)') ]
+		turn_split = [sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', enable_events=True, size=[5,1], default_text="80"), sg.Text('                                                              Split original file into '), sg.InputText('4', key='split', enable_events=True, size=[4,1]), sg.Text('new files                  ') ]
+		track_percent = [sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500',key='maxpoints', enable_events=True, size=[5,1]),  sg.Text('                                       Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1], enable_events=True), sg.Text('(0-100)') ]
 		if weborgui == 'web':
 			#Can't have enable_events=True for InputText elements in PySimpleGUIWeb because of a bug, for now.  2019/08
-			turn_split = [sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', size=[5,1], default_text="80"), sg.Text('                                    OR                        Split original file into '), sg.InputText('4', key='split', size=[4,1]), sg.Text('new files                  ') ]
-			track_percent = [sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500', key='maxpoints', size=[5,1]),  sg.Text('             OR                        Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1]), sg.Text('(0-100)') ]
+			turn_split = [sg.Text('            Max Turns per output file'), sg.InputText(key='maxturns', size=[5,1], default_text="80"), sg.Text('                                                              Split original file into '), sg.InputText('4', key='split', size=[4,1]), sg.Text('new files                  ') ]
+			track_percent = [sg.Text('    Max number of Trackpoints in each output file'), sg.InputText('500', key='maxpoints', size=[5,1]),  sg.Text('                                       Percent of Trackpoints to retain '), sg.InputText('25',key='percent', size=[3,1]), sg.Text('(0-100)') ]
 	
 
 		layout = [[sg.Text('                                    VPrune will simplify your .tcx files by trimming points and splitting the file into several smaller files')],
@@ -845,14 +934,16 @@ def main(argv=None):
 
 					[sg.Frame('',[
 						[sg.Text('                                               SPLIT THE FILE',font=('default',19,'italic'), justification='center')],
-						[sg.Text('                       '),sg.Checkbox('Use Max Turns                                                                                     ', default=True,enable_events=True,key='1_usemaxturns'), sg.Checkbox('Use File Split #                      ', enable_events=True,key='1_usesplit')],
+						[sg.Text('                       '),sg.Checkbox('Use Max Turns                                                     OR                              ', default=True,enable_events=True,key='1_usemaxturns'), sg.Checkbox('Use File Split #                      ', enable_events=True,key='1_usesplit')],
 						turn_split,
+						[sg.Text('')],
+						[sg.Text('                                                                        Overlap split files by'), sg.InputText(key='overlap_num', size=[4,1], default_text="4"), sg.Text('turns                  ') ],
 						[sg.Text('')],
 					], background_color=window_bcolor)],
 
 					[sg.Frame('',[
 						[sg.Text('                                        REDUCE TRACKPOINTS',font=('default',18,'italic'),justification='center')],
-						[sg.Text('                  '),sg.Checkbox('Use Max Trackpoints                                                                          ', enable_events=True, default=True,key='2_usemaxpoints'), sg.Checkbox('Use Percentage of Trackpoints               ', enable_events=True, key='2_usepercent')],
+						[sg.Text('                  '),sg.Checkbox('Use Max Trackpoints                                                    OR                    ', enable_events=True, default=True,key='2_usemaxpoints'), sg.Checkbox('Use Percentage of Trackpoints               ', enable_events=True, key='2_usepercent')],
 						track_percent,
 						[sg.Text('')],
 						[sg.Text('File prefix for processed files'), sg.InputText('vp_',key='prefix', size=[15,1]), sg.Text('If more than one file, names will be, ie, vp_1_yourfilename.tcx, vp_2_yourfilename.tcx, ...') ],
@@ -861,7 +952,7 @@ def main(argv=None):
 
 					[sg.Frame('',[
 						[sg.Text('                                      CLEAN THE OUTPUT FILES',font=('default',18,'italic'),justification='center')],
-						[sg.Text('                                                                    '),sg.Checkbox('Strip all "Generic" CoursePoints', key='cleancourse')],				  
+						[sg.Text('                                                                         '),sg.Checkbox('Strip all "Generic" CoursePoints', key='cleancourse')],				  
 						[sg.Text('                                           '),sg.Checkbox('Remove all Notes     ', default=True,enable_events=True, key='3_cleannotes'), sg.Checkbox('Trim/clean Notes', enable_events=True, key='3_trimnotes'), sg.Checkbox('Leave Notes alone                                                   ', enable_events=True, key='3_nocleannotes')],
 					#[sg.Checkbox('Show progress Debug Window', key='progress_debug')],
 						[sg.Text('')],
@@ -907,6 +998,7 @@ def main(argv=None):
 			'''
 			main_window.FindElement('webnotes').Update(webnotes, visible=True)
 			main_window.FindElement('maxturns').Update(str(maxturns))
+			main_window.FindElement('overlap_num').Update(str(overlap_num))
 			main_window.FindElement('split').Update(str(split))
 			main_window.FindElement('maxpoints').Update(str(maxpoints))
 			main_window.FindElement('percent').Update(str(percent))
@@ -932,7 +1024,7 @@ def main(argv=None):
 					break
 
 
-			#print(event, values)
+			print(event, values)
 			#sys.stderr.flush()
 			if (event=="Exit") or event is None:
 				main_window.Close()
@@ -1059,6 +1151,11 @@ def main(argv=None):
 				print('Assuming DEFAULT Maximum Turns/Coursepoints in each output file: %d\n' % maxturns)
 				#sys.stderr.flush()
 
+			if values['overlap_num'] and len(values['overlap_num'])>0 and isInt(values['overlap_num']) and int(round(float(values['overlap_num']))) > 0:
+				overlap_num = int(round(float(values['overlap_num'])))
+				print('Overlap split files by %d turns\n' % overlap_num)
+
+
 			if values['cleancourse']:
 				cleancourse=True
 				#if clean:
@@ -1154,6 +1251,10 @@ def main(argv=None):
 				sys.stderr.write('Assuming DEFAULT Maximum Turns/Coursepoints in each output file: %d\n' % maxturns)
 				#sys.stderr.flush()
 
+			if arguments['overlap_num'] and len(arguments['overlap_num'])>0 and isInt(arguments['overlap_num']) and int(round(float(arguments['overlap_num']))) > 0:
+				overlap_num = int(round(float(values['overlap_num'])))
+				sys.stderr.write('Overlap split files by %d turns\n' % overlap_num)
+
 
 			if arguments['--cleancourse']:
 				cleancourse=True
@@ -1230,7 +1331,7 @@ def main(argv=None):
 				sys.exit(-1)
 	
 			sys.stderr.write(' \n')
-			#sys.stderr.flush()
+			sys.stderr.flush()
 
 
 		if gui:
