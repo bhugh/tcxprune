@@ -2,6 +2,8 @@ VPrune prunes and splits .tcx files to make them more compatible with Lezyne and
 
 VPrune can be run from the command line OR as a windows program (Windows) OR via web interface (Android)
 
+![tcx-pruner-screenshot](https://user-images.githubusercontent.com/2321668/63480757-aff8e000-c458-11e9-913b-3a2edda90dc4.png)
+
  - If you simply start (or double click on) vprune.py/vprune.exe, a window will pop up - you can choose the file to process and other options
 
     --> If using the web version, a web window should open; if not open a browser on your device and navigate to localhost:8081 or 127.0.0.1:8081
