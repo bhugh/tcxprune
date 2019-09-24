@@ -72,7 +72,75 @@ Depending on your system, you may need to add 'python' to the start of the comma
 
 	python vprune.py mygpsfile.tcx
 	python vprune.py --help
+ 
+SETTING UP VPRUNE ON ANDROID (TERMUX)
+You can run VPrune on your Android device.  You first set up Termux, a terminal/command line app. Then set up python within Termux.  Then run VPrune via the command line with python.
 
+You can run it as a command line app (see command line usage below) or simply start Vprune using the command line, then connect to the GUI interface via a web browser.  
+
+Step by step instructions:
+ 
+ 1. Install Termux from the Play Store or F-Droid
+ 2. Install needed packages from the Termux command line:
+ 
+      pkg install python     - to install python
+      pkg install clang      - install c language      
+      pkg install libxml2 libxslt - install xml libraries
+ 
+    Some of the above may take a few minutes to complete.
+    
+    You may encounter issues installing the lxml python library (see below).  If you do , it is likely because of issues installing the libmxl2, libxslt, or related packages.  This page seems to have latest discussion & info on this issue: 
+    
+    https://github.com/termux/termux-packages/issues/3793
+    
+ 3. Once python is installed you can use pip to install the usual packages:
+ 
+ 	    pip install docopt
+	    pip install lxml==4.4.1
+	    pip install PYSimpleGUI==4.2.0
+	    pip install PYSimpleGUIWeb==0.28.1
+         
+ 4. You'll want access to your Android file system.  Here is how:
+ 
+     A. Android settings/apps/Termux/Permissions and give Termux permission to access "Storage"
+     
+     B. Within termux, issue this command at the command line:
+     
+         termux-setup-storage 
+      
+     C. More details here: https://wiki.termux.com/wiki/FAQ
+     
+ 5. Now copy vprune.py and the file you want to prune into the same directory on the Android device. Let's assume this directory is "download" - the normal Android download directory.  Usually within Termux this will be seen as /sdcard/download.  The examples below, assume your vprune.py and the file you wish to edit, called sample.tcx, are both in that directory.
+ 
+ You have two choices for running vprune:
+ 
+    A. Run at the Termux command line: 
+ 
+     cd /sdcard/download
+     python vprune.py sample.tcx
+     
+    See "Command Line Usage Examples" below for more options.
+    
+    B.  Run in the web GUI:
+ 
+     cd /sdcard/download
+     python vprune.py
+     
+     You won't see anything happen except that vprune starts to run.
+     
+     Now switch out of Termux (leaving it running) and start your Android device's web browser.  Navigate to this URL:
+     
+      
+     127.0.0.1:8081
+     
+     When that web page loads, you should see the VPrune GUI.  Choose your options, enter the name of the file to process under "Choose the Document", and press "Process File".
+     
+     Notes about the Web GUI:
+     
+        - VPrune looks in the directory where it is started for the .tcx file. If you start with vprune.py and the sample.tcx file in the same directory it is much easier
+        - Unfortunately the "Browse" button does not work (yet), so you cannot select the desired file from a list, but must manually type the name.     
+
+     
 COMMAND LINE USAGE EXAMPLES:
   VPrune INPUTFILE - ie, run with default settings, will clean Notes from entries, split the files, and eliminate Trackpoints as needed to create a series of files that should upload/run OK with a Lezyne GPS device
   vprune routefile.tcx
@@ -103,6 +171,10 @@ Options:
   --trimnotes     Trim notes to 32 characters and remove any potentially troublesome characters (also forces --nocleannotes)
 
   --prefix <string>   Prefix output files with this string [Default: vp_]
+  
+  --gui               Force GUI mode
+  --webgui            Force WebGUI mode (access via web browser at URL localhost:8081)  
+  
       
 """
 #vprune.py [--maxturns=<num_turns per file, will split if greater, <= 0, default 150 >][--maxpoints=<num_points <0, default 2000 >] [--percent=<pct 0-100>] [--clean=<BOOL>] INPUTFILE
@@ -151,6 +223,24 @@ except ImportError:
 	print("************ERROR************************")
 	print()
 	sys.exit()
+ 
+args = docopt(__doc__)   
+
+''' options to force GUI or webGUI, and print the info message necessary ''' 
+forcegui = False
+forcewebgui = False
+
+if args['--webgui']:
+	forcewebgui = True
+	weborgui = 'web' 
+	print ('option --webgui - attempting to force to web GUI mode')
+ 
+if args['--gui']:
+	forcegui = True
+	weborgui = 'gui'
+	print ('option --gui - attempting to force to GUI mode')
+  
+ 
 
 pysimpleinstalled = False
 pysimplePlainInstalled = False
@@ -197,6 +287,20 @@ except ImportError:
 	print("*****WARNING*****************************")
 	print()
 	pysimpleinstalled = False
+ 
+if weborgui == 'web':  
+	print()
+	print("************USE WEB GUI************************")
+	print("Web GUI mode enabled.")
+	print()
+	print("The VPrune WEB GUI is running. To access it, open your")
+	print ("web browser and visit this URL:")
+	print()
+	print("   localhost:8081")
+	print()  
+	print("************USE WEB GUI************************")
+	print()
+ 
 
 try:
   from lxml import etree
@@ -234,7 +338,6 @@ except ImportError:
 				except ImportError:
 					print("Failed to import ElementTree from any known place")
 	'''
-
 
 ns1 = 'http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2'
 ns2 = 'http://www.garmin.com/xmlschemas/ActivityExtension/v2'
@@ -424,6 +527,8 @@ def s2p(speed, lever=5):
 	factor2 =  [85.0,121.0,162.0,196.0,236.0,272.0,307.0,347.0,382.0,417.0]
 	w = int(round(factor2[lever-1]+(speed-29.9)/30.1*(factor1[lever-1]-factor2[lever-1])))
 	return w if w > 0 else 0
+
+
 
 def check_time(track, time, times):
 	#print (time) 
@@ -909,7 +1014,7 @@ def main(argv=None):
 	cleannotes=False
 	trimnotes=False
 	gui=False
-	progress_debug=False
+	progress_debug=False     
 
 	window_bcolor='lightgray'
 	multiline_bcolor='white'
