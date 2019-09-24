@@ -26,7 +26,7 @@ In remove Trackpoints, vprune simply deletes points randomly. It does not attemp
 
 Every CoursePoint (ie, point with turn-by-turn direction) must have an corresponding Trackpoint. So Trackpoints that correspond to spots with a turn-by-turn direction are never removed.
 
-Via the entrt screen or command line, you can specify --percent to remove a percentage of Trackpoints.  So, for example, --percent 100 will leave all Trackpoints in place, while --percent 0 will remove all Trackpoints except those corresponding to a turn (remember, those can't be removed or the file won't work any more).
+Via the entry screen or command line, you can specify --percent to remove a percentage of Trackpoints.  So, for example, --percent 100 will leave all Trackpoints in place, while --percent 0 will remove all Trackpoints except those corresponding to a turn (remember, those can't be removed or the file won't work any more).
 
 VPrune can also, optionally, split the file into several segments.  This allows the resulting files to be smaller and have better fidelity on the map.
 
@@ -138,11 +138,11 @@ Step by step instructions:
      Notes about the Web GUI:
      
         - VPrune looks in the directory where it is started for the .tcx file. If you start with vprune.py and the sample.tcx file in the same directory it is much easier
-        - Unfortunately the "Browse" button does not work (yet), so you cannot select the desired file from a list, but must manually type the name.     
+        - Unfortunately the "Browse" button does not work in the Web GUI version (yet!), so you cannot select the desired file from a list, but must manually type the name.     
 
      
 COMMAND LINE USAGE EXAMPLES:
-  VPrune INPUTFILE - ie, run with default settings, will clean Notes from entries, split the files, and eliminate Trackpoints as needed to create a series of files that should upload/run OK with a Lezyne GPS device
+  vprune INPUTFILE - ie, run with default settings, will clean Notes from entries, split the files, and eliminate Trackpoints as needed to create a series of files that should upload/run OK with a Lezyne GPS device
   vprune routefile.tcx
   vprune --maxturns 100 --maxpoints 1000 --cleancourse --nocleannotes routefile.tcx
   vprune --maxturns 60 --maxpoints 400 --prefix new_ routefile.tcx 
@@ -170,7 +170,7 @@ Options:
   --nocleannotes  Do not eliminate all Notes in CoursePoints. [Default: Eliminate all Notes]
   --trimnotes     Trim notes to 32 characters and remove any potentially troublesome characters (also forces --nocleannotes)
 
-  --prefix <string>   Prefix output files with this string [Default: vp_]
+  --prefix <string>   Prefix output filenames with this string [Default: vp_]
   
   --gui               Force GUI mode
   --webgui            Force WebGUI mode (access via web browser at URL localhost:8081)  
