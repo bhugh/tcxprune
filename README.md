@@ -1,6 +1,16 @@
 VPrune prunes and splits .tcx files to make them more compatible with Lezyne and other GPS devices that are unable to handle large and complex files.
 
-VPrune can be run from the command line OR as a windows program (Windows) OR via web interface (Android)
+VPrune can be run as a window GUI program (Windows, MacOS, Linux/Unix) OR from the command line OR via web GUI interface (Android).
+
+Runs under:
+
+ * Windows (.exe included)
+ * Any Unix environment (MacOS, etc)
+ * Android (under Termux)
+ * Anywhere Python runs
+ * Online [as a web page at Repl.it](https://repl.it/@bhugh/TCXPrune) - a great way to give it a quick check-out
+
+Please checkout the [project wiki](https://github.com/bhugh/tcxprune/wiki) for detailed information about settings and options, setup instructions for Android and other Unix environments, GUI options, and command-line options.
 
 ![tcx-pruner-screenshot](https://user-images.githubusercontent.com/2321668/63480757-aff8e000-c458-11e9-913b-3a2edda90dc4.png)
 
